@@ -311,3 +311,40 @@ def test_controls_reject_non_bool_and_report_unknown_ids(conn):
     assert set_agent_paused(conn, 99, True) is False
     assert set_agent_paused(conn, 1, True) is True
     assert conn.execute("SELECT paused FROM agent WHERE id = 1").fetchone()[0] == 1
+
+class HandoffRole(BaseRole):
+    """Agent 1's role: raises a task that belongs to another agent."""
+    name = "handoff"
+    def __init__(self, handoff_to):
+        self.handoff_to = handoff_to
+    def triggers(self, ctx):
+        return [Task(1, TaskKind.READ, {"handoff_to": self.handoff_to}, 0, "stock is low")]
+class RecordingRole(BaseRole):
+    name = "receiver"
+    def __init__(self):
+        self.runs: list[Task] = []
+    def run(self, task, ctx):
+        self.runs.append(task)
+        return ActionResult(status="done", message="ok")
+def test_task_with_handoff_to_goes_through_manager_assign(conn):
+    bus = EventBus()
+    sub = bus.subscribe()
+    receiver = RecordingRole()
+    hb = build(conn, {1: HandoffRole(2), 2: receiver}, bus=bus)
+    results = asyncio.run(hb.tick())
+    assert [r.status for r in results] == ["done"]
+    assert len(receiver.runs) == 1 and receiver.runs[0].agent_id == 2
+    actions = [(r["agent_id"], r["action"]) for r in reversed(recent(conn, 1, limit=10))]
+    assert actions == [(1, "handoff"), (2, "read")]
+    types = []
+    while sub._buffer:
+        types.append(sub._buffer.popleft())
+    assert any(e["type"] == "handoff" and e["from_agent_id"] == 1 and e["to_agent_id"] == 2 for e in types)
+@pytest.mark.parametrize("bad_target", ["2", True, None, 2.0])
+def test_invalid_handoff_to_is_ignored(conn, bad_target):
+    receiver = RecordingRole()
+    hb = build(conn, {1: HandoffRole(bad_target), 2: receiver})
+    results = asyncio.run(hb.tick())
+    assert [r.status for r in results] == ["info"]  # agent 1's own role handled it
+    assert receiver.runs == []
+    assert [r["action"] for r in recent(conn, 1, limit=10)] == ["read"]

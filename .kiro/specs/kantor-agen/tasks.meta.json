@@ -222,6 +222,16 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645210122
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650148265
+      },
+      {
+        "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794654361444
       }
     ],
     "8.1 Build the Three.js scene": [
@@ -285,6 +295,11 @@
         "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794648010086
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650124670
       }
     ],
     "8.6 Implement the behavior controller": [
@@ -292,6 +307,16 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645210995
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650148516
+      },
+      {
+        "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794654374004
       }
     ],
     "8.7 Implement the agent panel, speech bubbles, and status markers": [
@@ -480,6 +505,11 @@
         "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794648010363
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650124906
       }
     ],
     "5.6 Write unit tests for the Manager and heartbeat": [
@@ -487,6 +517,42 @@
         "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794648010596
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650125420
+      }
+    ],
+    "7.2 Write property test for visual state": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650148839
+      },
+      {
+        "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794654363140
+      }
+    ],
+    "8.5 Write a unit test for the A* grid": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650149094
+      },
+      {
+        "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794654363494
+      }
+    ],
+    "7. Visual state and office API": [
+      {
+        "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794654361995
       }
     ]
   }

@@ -95,25 +95,25 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Evaluate each active agent's triggers on a schedule with one lock per business
     - Check pause flags before every step, and catch exceptions per agent so the loop continues
     - _Requirements: 3.1, 3.2, 3.4, 8.1, 8.3_
-  - [-]* 5.5 Write property test for pause behavior
+  - [x]* 5.5 Write property test for pause behavior
     - **Property 6: Paused means no new work**
     - **Validates: Requirements 3.4, 8.3**
-  - [-]* 5.6 Write unit tests for the Manager and heartbeat
+  - [x]* 5.6 Write unit tests for the Manager and heartbeat
     - Use a fake clock and fake LLM; cover model routing, LLM failure, and handoff order
     - _Requirements: 4.1, 4.2, 4.4_
 
-- [~] 6. Checkpoint: skeleton backend
+- [ ] 6. Checkpoint: skeleton backend
   - Run the full test suite and ask the owner if anything needs to change before the front end work
 
-- [ ] 7. Visual state and office API
+- [x] 7. Visual state and office API
   - [x] 7.1 Implement `visual_state` and the SSE stream
     - Return working, handoff, waiting, idle, or paused from backend state only
     - Push `{agent_id, state, target_agent_id, bubble_text}` over `GET /api/events`
     - _Requirements: 2.8_
-  - [ ]* 7.2 Write property test for visual state
+  - [x]* 7.2 Write property test for visual state
     - **Property 7: Visual state matches real state**
     - **Validates: Requirements 2.8**
-  - [~] 7.3 Implement the office REST endpoints
+  - [x] 7.3 Implement the office REST endpoints
     - `GET /api/office`, `GET /api/agents/{id}`, `POST /api/office/pause`, `POST /api/agents/{id}/pause`, `PUT /api/policy`
     - Validate input at the API layer and reject invalid values without writing
     - _Requirements: 1.3, 1.4, 2.9, 8.1, 8.2_
@@ -130,27 +130,27 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 8.3 Implement character loading and animation
     - Load rigged characters with one `AnimationMixer` each, give each agent a distinct look seeded by agent id, and crossfade clips over 0.3 seconds
     - _Requirements: 2.2, 2.3_
-  - [-] 8.4 Implement grid pathfinding and walking
+  - [x] 8.4 Implement grid pathfinding and walking
     - Build the 0.5 m grid, A* with path smoothing, walking at 1.2 m/s with turn easing, and the occupied-cell wait rule
     - _Requirements: 2.4_
-  - [ ]* 8.5 Write a unit test for the A* grid
+  - [x]* 8.5 Write a unit test for the A* grid
     - No path may cross a blocked cell, and unreachable targets return no path
     - _Requirements: 2.4_
-  - [~] 8.6 Implement the behavior controller
+  - [-] 8.6 Implement the behavior controller
     - Map backend states to behaviors: working, handoff, waiting, idle, and paused, with idle behaviors that never use the typing animation
     - _Requirements: 2.5, 2.6, 2.7, 2.8_
-  - [~] 8.7 Implement the agent panel, speech bubbles, and status markers
+  - [ ] 8.7 Implement the agent panel, speech bubbles, and status markers
     - Show role, status, recent actions, spending today, and the latest action in a bubble
     - _Requirements: 2.6, 2.9_
-  - [~] 8.8 Measure and tune performance
+  - [ ] 8.8 Measure and tune performance
     - Check load time and frame rate with 8 agents in normal and low-quality mode
     - _Requirements: 2.10_
 
-- [~] 9. Checkpoint: skeleton demo
+- [ ] 9. Checkpoint: skeleton demo
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office
 
 - [ ] 10. Kantor Warung application
-  - [~] 10.1 Implement the data layer for products, sales, and purchase orders
+  - [ ] 10.1 Implement the data layer for products, sales, and purchase orders
     - `record_sale` and `receive_purchase` update stock in the same transaction as the sale or purchase row
     - Reject a sale larger than the stock without applying it
     - _Requirements: 6.1, 6.2_
@@ -160,12 +160,12 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [ ]* 10.3 Write property test for exact sale totals
     - **Property 2: Sale total is exact**
     - **Validates: Requirements 6.2**
-  - [~] 10.4 Implement the cashier, stock, finance, and marketing roles
+  - [ ] 10.4 Implement the cashier, stock, finance, and marketing roles
     - Stock agent orders when stock is under the minimum and within the limit, or records the order as pending
     - Marketing agent drafts a promo after sales fall for three days in a row
     - Finance agent prepares the daily summary
     - _Requirements: 1.2, 3.2, 6.3_
-  - [~] 10.5 Add onboarding, seed data, and the app entry point
+  - [ ] 10.5 Add onboarding, seed data, and the app entry point
     - Ask for business type and name, force the policy setup before any spending, and load demo data
     - _Requirements: 1.1, 1.2, 1.3, 10.1, 10.3_
   - [ ]* 10.6 Write a smoke test
@@ -173,33 +173,33 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - _Requirements: 3.2, 10.1_
 
 - [ ] 11. Kantor Jasa application
-  - [~] 11.1 Implement the data layer for bookings, invoices, and customers
+  - [ ] 11.1 Implement the data layer for bookings, invoices, and customers
     - An invoice must not change after the owner or policy approves it
     - _Requirements: 5.1, 6.2_
-  - [~] 11.2 Implement the booking, billing, and follow-up roles
+  - [ ] 11.2 Implement the booking, billing, and follow-up roles
     - Booking agent confirms slots, billing agent drafts invoices, follow-up agent drafts reminders into the outbox
     - _Requirements: 1.2, 3.2, 5.4_
-  - [~] 11.3 Add onboarding, seed data, and the app entry point
+  - [ ] 11.3 Add onboarding, seed data, and the app entry point
     - Reuse the skeleton onboarding with Kantor Jasa roles and demo data
     - _Requirements: 1.1, 1.2, 9.2, 10.1, 10.3_
   - [ ]* 11.4 Write a smoke test
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
 
-- [~] 12. Checkpoint: both applications
+- [ ] 12. Checkpoint: both applications
   - Run the full test suite and run both applications end to end; ask the owner if anything needs to change
 
 - [ ] 13. Documentation and submission material
-  - [~] 13.1 Write the README
+  - [ ] 13.1 Write the README
     - Explain the idea, the skeleton-plus-two-apps layout, one-command run per application, and the demo mode with the fake LLM
     - _Requirements: 9.3, 10.3_
-  - [~] 13.2 Write the Kiro usage write-up
+  - [ ] 13.2 Write the Kiro usage write-up
     - Describe how specs, steering, hooks, and property-based tests shaped the build, with real examples from this repository
     - _Requirements: 11.2_
-  - [~] 13.3 Check repository readiness for Devpost
+  - [ ] 13.3 Check repository readiness for Devpost
     - Public repo, visible MIT license, `.kiro/` committed, two app folders, `CREDITS.md`, and no secrets in the history
     - _Requirements: 9.1, 10.2, 11.2_
-  - [~] 13.4 Record the demo video
+  - [ ] 13.4 Record the demo video
     - Show the working app on the device it was built for, under three minutes, uploaded as public to YouTube
     - _Requirements: 10.1_
 

@@ -106,12 +106,20 @@ CREATE TABLE IF NOT EXISTS outbox (
 """
 
 
-def connect(path: str) -> sqlite3.Connection:
-    """Open a connection with the settings the rest of the app relies on."""
+def connect(path: str, check_same_thread: bool = True) -> sqlite3.Connection:
+    """Open a connection with the settings the rest of the app relies on.
+
+    ``check_same_thread=False`` lets the connection be used from a thread other
+    than the one that created it. The web app needs this because the connection
+    is created at startup but used from the server's event loop thread. It is
+    only safe when the caller never uses the connection from two threads at the
+    same time (the office API runs every handler on the event loop thread).
+    """
     conn = sqlite3.connect(
         path,
         timeout=BUSY_TIMEOUT_SECONDS,
         isolation_level=None,
+        check_same_thread=check_same_thread,
     )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")

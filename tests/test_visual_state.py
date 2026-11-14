@@ -48,7 +48,10 @@ TASK = SimpleNamespace(reason="restock")  # any non-None value counts as a runni
         (False, False, TASK, None, True, VisualState.WORKING),  # running beats waiting
         (False, False, None, None, True, VisualState.WAITING),
         (False, False, None, None, False, VisualState.IDLE),
-        (False, False, None, 3, False, VisualState.IDLE),  # a handoff needs a running task
+        (False, False, None, 3, False, VisualState.HANDOFF),  # a handoff needs no running task
+        (False, False, None, 3, True, VisualState.HANDOFF),  # handoff beats waiting
+        (True, False, None, 3, False, VisualState.PAUSED),  # pause beats handoff
+        (False, True, TASK, 3, False, VisualState.PAUSED),
     ],
 )
 def test_priority_rules(agent_paused, business_paused, running, handoff, waiting, expected):

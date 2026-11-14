@@ -3,10 +3,11 @@
 ``visual_state`` is a pure function. Rules, in priority order:
 
 1. The agent or the whole business is paused -> ``paused``.
-2. The agent has a running task -> ``working``, unless a handoff is pending,
-   then ``handoff``.
-3. The agent waits for the owner -> ``waiting``.
-4. Otherwise ``idle``.
+2. A handoff is pending -> ``handoff``. The agent walks to a colleague's desk
+   and talks, which does not need a running task.
+3. The agent has a running task -> ``working``.
+4. The agent waits for the owner -> ``waiting``.
+5. Otherwise ``idle``.
 
 So ``working`` is returned if and only if there is a running task, neither the
 agent nor the business is paused, and no handoff is pending (Property 7). A
@@ -83,8 +84,10 @@ def visual_state(
     """Decide what an agent looks like. Pure: no I/O, no clock."""
     if agent_paused or business_paused:
         return VisualState.PAUSED
+    if pending_handoff is not None:
+        return VisualState.HANDOFF
     if running_task is not None:
-        return VisualState.HANDOFF if pending_handoff is not None else VisualState.WORKING
+        return VisualState.WORKING
     if waiting_for_owner:
         return VisualState.WAITING
     return VisualState.IDLE

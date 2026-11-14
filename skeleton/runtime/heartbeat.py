@@ -40,6 +40,7 @@ STATE_WORKING = "working"
 STATE_IDLE = "idle"
 STATE_WAITING = "waiting"
 TRIGGER_ACTION = "triggers"
+HANDOFF_KEY = "handoff_to"
 MAX_ERROR_CHARS = 300
 
 SleepFn = Callable[[float], Awaitable[None]]
@@ -112,7 +113,12 @@ class Heartbeat:
         try:
             self._publish_state(agent_id, STATE_WORKING, task.reason)
             try:
-                result = await self._manager.handle(task)
+                target = self._handoff_target(task)
+                if target is None:
+                    result = await self._manager.handle(task)
+                else:
+                    # A handoff goes through assign so it reaches the log and the bus.
+                    result = await self._manager.assign(task, target)
             except Exception as exc:  # the Manager should not raise, but never trust that
                 message = f"task failed: {self._describe(exc)}"
                 self._log_failure(agent_id, task.kind, message)
@@ -155,6 +161,15 @@ class Heartbeat:
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _handoff_target(task: Task) -> int | None:
+        """Agent id in ``payload["handoff_to"]``, or None when there is no valid one."""
+        payload = task.payload
+        target = payload.get(HANDOFF_KEY) if isinstance(payload, dict) else None
+        if isinstance(target, int) and not isinstance(target, bool):
+            return target
+        return None
+
     def _business_paused(self) -> bool:
         """True when paused. An unknown business counts as paused (fail safe)."""
         row = self._conn.execute(
