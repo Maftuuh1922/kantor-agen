@@ -95,10 +95,10 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Evaluate each active agent's triggers on a schedule with one lock per business
     - Check pause flags before every step, and catch exceptions per agent so the loop continues
     - _Requirements: 3.1, 3.2, 3.4, 8.1, 8.3_
-  - [ ]* 5.5 Write property test for pause behavior
+  - [-]* 5.5 Write property test for pause behavior
     - **Property 6: Paused means no new work**
     - **Validates: Requirements 3.4, 8.3**
-  - [ ]* 5.6 Write unit tests for the Manager and heartbeat
+  - [-]* 5.6 Write unit tests for the Manager and heartbeat
     - Use a fake clock and fake LLM; cover model routing, LLM failure, and handoff order
     - _Requirements: 4.1, 4.2, 4.4_
 
@@ -106,7 +106,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - Run the full test suite and ask the owner if anything needs to change before the front end work
 
 - [ ] 7. Visual state and office API
-  - [~] 7.1 Implement `visual_state` and the SSE stream
+  - [x] 7.1 Implement `visual_state` and the SSE stream
     - Return working, handoff, waiting, idle, or paused from backend state only
     - Push `{agent_id, state, target_agent_id, bubble_text}` over `GET /api/events`
     - _Requirements: 2.8_
@@ -127,10 +127,10 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Download Quaternius characters, animation clips, and furniture, then list each source and license in `CREDITS.md`
     - Confirm which clips exist, and implement the typing fallback if there is no typing clip
     - _Requirements: 2.2, 2.11_
-  - [~] 8.3 Implement character loading and animation
+  - [x] 8.3 Implement character loading and animation
     - Load rigged characters with one `AnimationMixer` each, give each agent a distinct look seeded by agent id, and crossfade clips over 0.3 seconds
     - _Requirements: 2.2, 2.3_
-  - [~] 8.4 Implement grid pathfinding and walking
+  - [-] 8.4 Implement grid pathfinding and walking
     - Build the 0.5 m grid, A* with path smoothing, walking at 1.2 m/s with turn easing, and the occupied-cell wait rule
     - _Requirements: 2.4_
   - [ ]* 8.5 Write a unit test for the A* grid

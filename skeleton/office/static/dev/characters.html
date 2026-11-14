@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kantor Agen: characters (dev)</title>
+  <link rel="stylesheet" href="../style.css">
+  <!-- Offline: "three" and its addons resolve to the vendored copies. No CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../vendor/three.module.js",
+      "three/addons/": "../vendor/addons/"
+    }
+  }
+  </script>
+  <style>
+    #dev-panel {
+      position: fixed; top: 12px; left: 12px; z-index: 5; width: 244px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 12px; font-size: 13px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+    }
+    #dev-panel h1 { font-size: 14px; margin: 0 0 8px; }
+    #dev-panel label { display: block; margin: 6px 0 2px; font-weight: 600; }
+    #dev-panel select { width: 100%; padding: 4px; }
+    #dev-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+    #dev-panel button {
+      padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff;
+      color: var(--ink); cursor: pointer; font: inherit;
+    }
+    #dev-panel button:hover { background: #f1ece0; }
+    #dev-panel .row { display: flex; gap: 6px; margin-top: 8px; }
+    #dev-panel .row button { flex: 1; }
+    #dev-info { margin-top: 8px; font-size: 12px; line-height: 1.4; color: #555; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <canvas id="office-canvas" aria-label="3D office with characters"></canvas>
+  <aside id="dev-panel">
+    <h1>Characters (dev)</h1>
+    <label for="who">Character</label>
+    <select id="who"></select>
+    <div id="dev-buttons"></div>
+    <div class="row">
+      <button id="look" type="button" aria-pressed="false">Look at camera</button>
+      <button id="zoom" type="button">Zoom in</button>
+    </div>
+    <div class="row">
+      <button id="fit" type="button">Whole room</button>
+      <label style="margin:0;display:flex;align-items:center;gap:4px"><input id="hold" type="checkbox"> hold wave</label>
+    </div>
+    <div id="dev-info"></div>
+  </aside>
+  <div id="loading" class="loading" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Loading characters">
+    <div class="loading-box">
+      <div class="loading-title">Characters</div>
+      <div class="loading-track"><div class="loading-fill" data-fill></div></div>
+      <div class="loading-label" data-label>Loading</div>
+    </div>
+  </div>
+  <div id="fatal" class="fatal" hidden role="alert"></div>
+  <script type="module">
+    import { createOffice } from "../office.js";
+    import { loadAssets, createCharacter, seatedRoot } from "../characters.js";
+
+    const params = new URLSearchParams(location.search);
+    const fatal = document.getElementById("fatal");
+    function showFatal(msg) {
+      fatal.textContent = msg;
+      fatal.hidden = false;
+      document.getElementById("loading")?.classList.add("done");
+    }
+
+    const BUTTONS = [
+      ["idle", "Idle"], ["walk", "Walk in place"], ["sit", "Sit"], ["type", "Type"],
+      ["talk", "Talk"], ["wave", "Wave"], ["stretch", "Stretch"], ["drink", "Drink"],
+      ["stand", "Stand up"],
+    ];
+
+    try {
+      const office = createOffice(document.getElementById("office-canvas"), { quality: params.get("quality") === "low" ? "low" : "normal" });
+      const assets = await loadAssets("../assets/manifest.json", (p) => office.setLoadingProgress(p.fraction, p.label));
+      const count = Math.max(1, Math.min(office.layout.maxAgents, Number(params.get("agents") ?? 8) || 8));
+      const ids = (params.get("ids") ?? "").split(",").filter(Boolean);
+      const chars = [];
+      for (let i = 0; i < count; i++) {
+        const id = ids[i] ?? `agent-${i + 1}`;
+        office.addAgentDesk(i);
+        const c = createCharacter(assets, id, { quality: office.getQuality() });
+        const d = office.layout.deskForAgent(i);
+        place(c, d, false);
+        office.scene.add(c.object3D);
+        chars.push(c);
+      }
+      office.onFrame((dt) => { for (const c of chars) c.update(dt); });
+
+      function place(c, d, seated) {
+        if (seated) c.placeAtSeat(d.seat, d.rotation);
+        else {
+          c.object3D.position.set(d.standSpot.x, 0, d.standSpot.z);
+          c.object3D.rotation.y = d.rotation;
+        }
+      }
+      function apply(c, i, name) {
+        const d = office.layout.deskForAgent(i);
+        const hold = document.getElementById("hold").checked;
+        if (name === "sit" || name === "type") {
+          if (!c.seated) place(c, d, true);
+          c.setBehavior(name);
+        } else if (name === "idle" || name === "walk") {
+          if (c.seated) place(c, d, false);
+          c.setBehavior(name);
+        } else if (name === "stand") {
+          c.setBehavior("stand");
+          if (c.seated === false) setTimeout(() => place(c, d, false), 1100);
+        } else if (name === "wave") {
+          c.setBehavior("wave", hold ? { duration: Infinity } : {});
+        } else {
+          c.setBehavior(name);
+        }
+      }
+
+      const who = document.getElementById("who");
+      who.append(new Option("All", "all"));
+      chars.forEach((c, i) => who.append(new Option(`${i + 1}: ${c.id}`, String(i))));
+      function targets() {
+        return who.value === "all" ? chars.map((c, i) => [c, i]) : [[chars[Number(who.value)], Number(who.value)]];
+      }
+      const box = document.getElementById("dev-buttons");
+      for (const [name, label] of BUTTONS) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.dataset.behavior = name;
+        b.addEventListener("click", () => { for (const [c, i] of targets()) apply(c, i, name); });
+        box.append(b);
+      }
+      let looking = false;
+      const lookBtn = document.getElementById("look");
+      lookBtn.addEventListener("click", () => {
+        looking = !looking;
+        lookBtn.setAttribute("aria-pressed", String(looking));
+        for (const [c] of targets()) c.lookAt(looking ? office.camera.position : null);
+      });
+      function focus(i, zoom = 0.36) {
+        const d = office.layout.deskForAgent(i);
+        office.controls.target.set(d.position.x, 0.8, d.seat.z + 0.6);
+        office.controls.zoom = zoom;
+      }
+      document.getElementById("zoom").addEventListener("click", () => {
+        if (who.value !== "all") focus(Number(who.value));
+      });
+      document.getElementById("fit").addEventListener("click", () => office.controls.reset());
+      function showInfo() {
+        const el = document.getElementById("dev-info");
+        if (who.value === "all") { el.textContent = `${chars.length} characters`; return; }
+        const l = chars[Number(who.value)].look;
+        el.textContent = `${l.body}, skin ${l.skin.name}\nhair ${l.hair.id.replace("hair_", "")} (${l.hair.color.name})${l.beard ? ", beard" : ""}\nshirt ${l.shirt.name}${l.longSleeves ? " (long sleeves)" : ""}\ntrousers ${l.pants.name}, shoes ${l.shoes.name}`;
+      }
+      who.addEventListener("change", showInfo);
+      showInfo();
+
+      window.dev = { office, assets, chars, apply, focus, place };
+      office.start();
+    } catch (err) {
+      console.error(err);
+      showFatal(`Could not start the character viewer: ${err.message ?? err}`);
+    }
+  </script>
+</body>
+</html>

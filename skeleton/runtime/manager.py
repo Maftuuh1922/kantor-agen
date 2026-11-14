@@ -7,22 +7,26 @@ limit), the first one wins and the policy engine rejects the later one.
 
 Order of work inside ``handle``:
 
-1. ``spend`` and ``customer_message`` go through ``authorize`` first. A rejection
-   is logged and the role is never run. The model is never asked to approve
-   anything (Req 5.5).
+1. ``spend`` and ``customer_message`` go through ``authorize`` before the role
+   runs. A rejection is logged and the role is never run. The model is never
+   asked to approve anything (Req 5.5).
+   One exception to the order: a ``customer_message`` whose payload has no
+   non-empty ``body`` gets its text from the model first, so the outbox row that
+   ``authorize`` writes holds the drafted text. If the model fails, the body
+   stays as the role's rule-based template, or becomes a short neutral default
+   when there is none, so the outbox is never empty.
 2. Kinds that need a model (``draft`` uses ``settings.model_low``,
    ``customer_message`` uses ``settings.model_strong``) get their text from the
    Manager, passed to the role as ``task.payload["llm_text"]``. ``read`` and
-   ``spend`` never call a model (Req 4.3).
+   ``spend`` never call a model (Req 4.3). A task never triggers more than one
+   model call.
 3. If the model call fails, the task is marked ``rule_only``, the failure is
    logged, and the role still runs without ``llm_text`` (Req 4.4).
 4. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
    task writes an activity row.
 
 For ``customer_message`` the outbox row is written by ``authorize`` from
-``task.payload`` (``channel``, ``recipient``, ``body``) before the model is
-called, so the body comes from the payload and not from ``llm_text``. Nothing is
-ever sent.
+``task.payload`` (``channel``, ``recipient``, ``body``). Nothing is ever sent.
 
 This module must not import anything from ``apps/``.
 """
@@ -48,6 +52,9 @@ LLM_FAILURE_REASON = "LLM unavailable, continuing rule-only"
 OUTBOX_MESSAGE = "queued in outbox"
 LLM_TEXT_KEY = "llm_text"
 HANDOFF_ACTION = "handoff"
+BODY_KEY = "body"
+DEFAULT_BODY_TEMPLATE = "Pesan dari {name}: lihat detail di kantor."
+DEFAULT_SENDER_NAME = "agen"
 MAX_ERROR_CHARS = 300
 SYSTEM_PROMPT = (
     "You help a small business owner in Indonesia. Reply in Bahasa Indonesia, "
@@ -155,6 +162,20 @@ class Manager:
         if not isinstance(task.payload, dict):
             return self._fail(task.agent_id, task.kind, "task payload must be a dict")
 
+        # A caller must not be able to preset model text.
+        task.payload.pop(LLM_TEXT_KEY, None)
+        model = self.model_for(task.kind)
+        model_called = False
+        if task.kind == TaskKind.CUSTOMER_MESSAGE and not self._has_body(task.payload):
+            # The outbox row is written by authorize, so the text must exist first.
+            model_called = True
+            if model is not None:
+                text = await self._draft_text(task, model)
+                if text is not None and text.strip():
+                    task.payload[BODY_KEY] = text
+            if not self._has_body(task.payload):
+                name = (getattr(role, "name", "") or "").strip() or DEFAULT_SENDER_NAME
+                task.payload[BODY_KEY] = DEFAULT_BODY_TEMPLATE.format(name=name)
         queued_in_outbox = False
         if task.kind in _GATED_KINDS:
             decision = authorize(self._conn, self._business_id, task, self._clock)
@@ -162,13 +183,8 @@ class Manager:
                 self._log(task.agent_id, task.kind, decision.reason, 0, "rejected")
                 return ActionResult(status="rejected", message=decision.reason)
             queued_in_outbox = decision.outcome == OUTCOME_QUEUED
-
-        # A caller must not be able to preset model text.
-        task.payload.pop(LLM_TEXT_KEY, None)
-        model = self.model_for(task.kind)
-        if model is not None:
+        if model is not None and not model_called:
             await self._draft_text(task, model)
-
         try:
             result = role.run(task, self._ctx)
         except Exception as exc:
@@ -178,8 +194,16 @@ class Manager:
 
         return self._finish(task, result, queued_in_outbox)
 
-    async def _draft_text(self, task: Task, model: str) -> None:
-        """Ask the model for text. On LLMError, switch the task to rule-only."""
+    @staticmethod
+    def _has_body(payload: dict) -> bool:
+        value = payload.get(BODY_KEY)
+        return value is not None and str(value).strip() != ""
+
+    async def _draft_text(self, task: Task, model: str) -> str | None:
+        """Ask the model for text. On LLMError, switch the task to rule-only.
+
+        Returns the text, or None when the model failed.
+        """
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": self._prompt(task)},
@@ -190,8 +214,9 @@ class Manager:
             # The error text is dropped on purpose: only the fixed reason is logged.
             task.rule_only = True
             self._log(task.agent_id, "llm", LLM_FAILURE_REASON, 0, "failed")
-            return
+            return None
         task.payload[LLM_TEXT_KEY] = text
+        return text
 
     @staticmethod
     def _prompt(task: Task) -> str:

@@ -205,6 +205,91 @@ async def test_blocked_customer_message_is_rejected(manager, conn, llm, roles):
 
 
 # --------------------------------------------------------------------------- #
+# customer_message without a body: the model drafts it before authorize
+# --------------------------------------------------------------------------- #
+def outbox_bodies(conn):
+    return [r[0] for r in conn.execute("SELECT body FROM outbox ORDER BY id")]
+
+
+@pytest.mark.parametrize("payload", [{}, {"body": ""}, {"body": "   "}, {"body": None}])
+async def test_drafted_body_reaches_outbox_when_payload_has_no_body(manager, conn, llm, roles, payload):
+    llm.responses.append("Halo Kak, pesanan sudah siap.")
+    result = await manager.handle(
+        make_task(TaskKind.CUSTOMER_MESSAGE, payload={"channel": "whatsapp", **payload})
+    )
+    assert result.status == "done"
+    assert outbox_bodies(conn) == ["Halo Kak, pesanan sudah siap."]
+    assert [c["model"] for c in llm.calls] == [STRONG]  # exactly one model call
+    assert roles[1].seen_text == ["Halo Kak, pesanan sudah siap."]
+    assert roles[1].seen_rule_only == [False]
+    assert rows(conn, status="failed") == []
+
+
+async def test_existing_body_is_not_replaced_by_model_text(manager, conn, llm):
+    llm.responses.append("model text")
+    await manager.handle(make_task(TaskKind.CUSTOMER_MESSAGE, payload={"body": "Template"}))
+    assert outbox_bodies(conn) == ["Template"]
+    assert len(llm.calls) == 1
+
+
+async def test_llm_failure_without_body_uses_neutral_default(manager, conn, llm, roles):
+    llm.fail_next()
+    task = make_task(TaskKind.CUSTOMER_MESSAGE, payload={})
+    result = await manager.handle(task)
+    assert result.status == "done"
+    assert outbox_bodies(conn) == ["Pesan dari recorder: lihat detail di kantor."]
+    assert task.rule_only is True
+    assert roles[1].seen_text == [None]
+    assert len(llm.calls) == 1  # not retried after authorize
+    [failure] = rows(conn, status="failed")
+    assert failure["reason"] == LLM_DOWN
+    assert API_KEY not in failure["reason"]
+
+
+async def test_llm_failure_keeps_role_template_body(manager, conn, llm):
+    llm.fail_next()
+    await manager.handle(make_task(TaskKind.CUSTOMER_MESSAGE, payload={"body": "Template toko"}))
+    assert outbox_bodies(conn) == ["Template toko"]
+
+
+async def test_blank_model_text_falls_back_to_default_body(manager, conn, llm):
+    llm.responses.append("   ")
+    await manager.handle(make_task(TaskKind.CUSTOMER_MESSAGE, payload={}))
+    assert outbox_bodies(conn) == ["Pesan dari recorder: lihat detail di kantor."]
+
+
+async def test_rejected_customer_message_without_body_writes_no_outbox(manager, conn, llm, roles):
+    set_policy(conn, 1, 10_000, ["customer_message"])
+    llm.responses.append("drafted but never queued")
+    result = await manager.handle(make_task(TaskKind.CUSTOMER_MESSAGE, payload={}))
+    assert result.status == "rejected"
+    assert result.message == "blocked action type"
+    assert conn.execute("SELECT COUNT(*) FROM outbox").fetchone()[0] == 0
+    assert roles[1].runs == []
+    assert len(llm.calls) == 1  # the draft happened first, and is not repeated
+    [row] = rows(conn, status="rejected")
+    assert row["action"] == "customer_message"
+
+
+async def test_caller_cannot_inject_llm_text_into_customer_message(manager, conn, llm, roles):
+    llm.fail_next()
+    await manager.handle(
+        make_task(TaskKind.CUSTOMER_MESSAGE, payload={"llm_text": "forged"})
+    )
+    assert roles[1].seen_text == [None]
+    assert "forged" not in outbox_bodies(conn)[0]
+
+
+async def test_other_kinds_still_authorize_before_the_model(conn, llm, roles):
+    """Spend and draft keep their order: a rejected spend never reaches the model."""
+    manager = Manager(conn, 1, FakeClock(), llm, Settings(model_low=LOW, model_strong=STRONG), roles)
+    await manager.handle(make_task(TaskKind.SPEND, cost=10_001))
+    await manager.handle(make_task(TaskKind.DRAFT, payload={}))
+    assert [c["model"] for c in llm.calls] == [LOW]
+    assert "body" not in roles[1].runs[0].payload
+
+
+# --------------------------------------------------------------------------- #
 # LLM failure (Req 4.4)
 # --------------------------------------------------------------------------- #
 async def test_llm_failure_goes_rule_only_and_role_still_runs(manager, conn, llm, roles):

@@ -205,6 +205,16 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645209962
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794648009489
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650123468
       }
     ],
     "7.3 Implement the office REST endpoints": [
@@ -253,6 +263,16 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645210636
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794648009822
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794650123867
       }
     ],
     "8.4 Implement grid pathfinding and walking": [
@@ -260,6 +280,11 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645210828
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794648010086
       }
     ],
     "8.6 Implement the behavior controller": [
@@ -448,6 +473,20 @@
         "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794647985413
+      }
+    ],
+    "5.5 Write property test for pause behavior": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794648010363
+      }
+    ],
+    "5.6 Write unit tests for the Manager and heartbeat": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794648010596
       }
     ]
   }
