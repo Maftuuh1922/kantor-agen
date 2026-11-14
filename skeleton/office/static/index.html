@@ -38,6 +38,12 @@
     <p id="hud-message" class="hud-message" role="alert" hidden></p>
   </header>
 
+  <!-- Shown only after several seconds of slow frames in normal quality. It never switches by itself. -->
+  <div id="quality-hint" class="quality-hint" role="status" hidden>
+    <span class="quality-hint-text">Switch to low quality?</span>
+    <button id="quality-hint-yes" type="button" class="hud-btn">Switch</button>
+    <button id="quality-hint-no" type="button" class="hud-btn" aria-label="Dismiss">Not now</button>
+  </div>
   <aside id="side-panel" class="side-panel" hidden aria-label="Agent panel"></aside>
 
   <aside id="activity-feed" class="activity-feed" aria-label="Latest activity">

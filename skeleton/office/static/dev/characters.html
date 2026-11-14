@@ -82,11 +82,13 @@
       const assets = await loadAssets("../assets/manifest.json", (p) => office.setLoadingProgress(p.fraction, p.label));
       const count = Math.max(1, Math.min(office.layout.maxAgents, Number(params.get("agents") ?? 8) || 8));
       const ids = (params.get("ids") ?? "").split(",").filter(Boolean);
+      // ?names=Sari,Budi,... gives the agents names (the name decides the gender); without it the id does
+      const names = (params.get("names") ?? "").split(",");
       const chars = [];
       for (let i = 0; i < count; i++) {
         const id = ids[i] ?? `agent-${i + 1}`;
         office.addAgentDesk(i);
-        const c = createCharacter(assets, id, { quality: office.getQuality() });
+        const c = createCharacter(assets, id, { quality: office.getQuality(), name: names[i] || undefined });
         const d = office.layout.deskForAgent(i);
         place(c, d, false);
         office.scene.add(c.object3D);
@@ -155,7 +157,9 @@
         const el = document.getElementById("dev-info");
         if (who.value === "all") { el.textContent = `${chars.length} characters`; return; }
         const l = chars[Number(who.value)].look;
-        el.textContent = `${l.body}, skin ${l.skin.name}\nhair ${l.hair.id.replace("hair_", "")} (${l.hair.color.name})${l.beard ? ", beard" : ""}\nshirt ${l.shirt.name}${l.longSleeves ? " (long sleeves)" : ""}\ntrousers ${l.pants.name}, shoes ${l.shoes.name}`;
+        const b = l.build;
+        const hair = l.hijab ? `headscarf ${l.hijab.name}` : `hair ${l.hair.id.replace("hair_", "")} (${l.hair.color.name})${l.beard ? ", beard" : ""}`;
+        el.textContent = `${l.gender}, skin ${l.skin.name}\n${hair}\n${l.outfit} ${l.shirt.name}${l.pattern.kind === "plain" ? "" : ` (${l.pattern.kind})`}${l.longSleeves ? ", long sleeves" : ""}\ntrousers ${l.pants.name}, shoes ${l.shoes.name}\nheight ${b.height.toFixed(2)}, width ${b.width.toFixed(2)}, arms ${b.arm.toFixed(2)}`;
       }
       who.addEventListener("change", showInfo);
       showInfo();

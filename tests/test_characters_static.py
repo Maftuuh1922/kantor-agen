@@ -23,7 +23,7 @@ def js_string_array(js: str, name: str) -> list[str]:
     return re.findall(r'"([^"]+)"', match.group(1))
 
 
-@pytest.mark.parametrize("rel", ["characters.js", "dev/characters.html"])
+@pytest.mark.parametrize("rel", ["characters.js", "char-look.js", "dev/characters.html"])
 def test_files_exist(rel):
     path = STATIC / rel
     assert path.is_file(), f"missing {rel}"
@@ -52,7 +52,7 @@ def test_character_api_surface():
 
 
 def test_no_external_urls_or_cdn_imports():
-    for rel in ("characters.js", "dev/characters.html"):
+    for rel in ("characters.js", "char-look.js", "dev/characters.html"):
         text = read(rel)
         assert not re.search(r"https?://", text), f"external URL in {rel}"
         assert not re.search(r"""from\s+["']https?:""", text), rel
@@ -140,19 +140,63 @@ def test_walk_speed_constants_match_the_manifest_hints():
 
 def test_looks_use_the_loaded_catalogue_and_a_fixed_palette():
     js = read("characters.js")
+    look = read("char-look.js")
     hair_ids = {h["id"] for h in MANIFEST["hair"]}
-    for hair in re.findall(r'"(hair_[a-z]+)"', js):
+    for hair in set(re.findall(r'"(hair_[a-z]+)"', js + look)):
         assert hair in hair_ids, hair
     body_ids = {c["id"] for c in MANIFEST["characters"]}
     for body in ("male", "female"):
         for skin in ("dark", "light"):
             assert f"superhero_{body}_{skin}" in body_ids
-    assert "`superhero_${body}_${tone.variant}`" in js
+    assert "`superhero_${gender}_${tone.variant}`" in look
     for palette in ("SHIRT_COLORS", "PANTS_COLORS", "SHOE_COLORS", "HAIR_COLORS", "SKIN_TONES"):
-        assert re.search(rf"export\s+const\s+{palette}\b", js), palette
+        assert re.search(rf"export\s+const\s+{palette}\b", look), palette
+        assert re.search(rf"\b{palette}\b", js.split("// ---- constants")[0] + js.split("export {")[1].split("}")[0]), palette
     # seeded by agent id only, never by Math.random (same look after every reload, Req 2.2)
-    assert "Math.random" not in js
-    assert "hash32" in js and "mulberry32" in js
+    assert "Math.random" not in js and "Math.random" not in look
+    assert "hash32" in look and "mulberry32" in look
+    assert 'from "./char-look.js"' in js
+
+
+def test_char_look_is_pure_and_shared_with_the_page():
+    look = read("char-look.js")
+    # no Three.js and no DOM in the module, so Node can test it (tests/js/char-look.test.mjs)
+    assert not re.search(r"^\s*import\b", look, re.M)
+    assert not re.search(r"\b(document|window|THREE)\b", look)
+    for name in ("resolveGender", "genderFromName", "genderFromId", "traitsForAgent"):
+        assert re.search(rf"export\s+function\s+{name}\s*\(", look), name
+    for name in ("FEMALE_NAMES", "MALE_NAMES", "BUILD_RANGES"):
+        assert re.search(rf"export\s+const\s+{name}\b", look), name
+    # characters.js takes `gender`, `name` and `look` options and passes them to the look
+    js = read("characters.js")
+    assert re.search(r"traitsForAgent\(agentId,\s*\{\s*\.\.\.overrides", js)
+    assert re.search(r"^\s*\*\s+gender, name\b", js, re.M)
+    assert re.search(r"^\s*\*\s+look\b", js, re.M)
+
+
+def test_main_passes_the_agent_name_to_the_character():
+    main = read("main.js")
+    assert re.search(r"createCharacter\(assets,\s*id,\s*\{[^}]*name:\s*agent\.name", main)
+    # the mock agents have names the look can use
+    for name in ("Sari", "Budi", "Wati", "Joko"):
+        assert f'name: "{name}"' in main
+    dev = read("dev/characters.html")
+    assert "name: names[i]" in dev
+
+
+def test_body_proportions_are_bone_scales_with_ground_contact():
+    js = read("characters.js")
+    # height on the model, width and depth on spine_01 (inverse on neck_01), arms on upperarm
+    assert re.search(r"function\s+applyBuild\(", js)
+    assert "model.scale.setScalar(build.height)" in js
+    assert "bones.spine_01.scale.set(build.width, 1, build.depth)" in js
+    assert "bones.neck_01.scale.set(1 / build.width, 1, 1 / build.depth)" in js
+    assert "upperarm_${side}`].scale.set(build.arm" in js
+    # the soles follow the height, a seated shorter character keeps the pelvis near the cushion
+    assert "ground.idle * hs" in js and "seatComp" in js
+    # shirt patterns and the headscarf are procedural, no new asset files
+    assert "uPattern" in js and "makeHijab" in js
+    assert not re.search(r"https?://", js)
 
 
 def test_shared_resources_are_not_mutated():

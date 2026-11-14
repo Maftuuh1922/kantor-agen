@@ -3,7 +3,9 @@
 //   /                 live mode: GET /api/office, then SSE /api/events
 //   /?mock=1          offline demo: no backend call, a scripted loop drives 4 mock agents
 //   /?mock=1&policy=unset   same, but the policy is not set yet: the first-run policy dialog opens
+//   ?mock=1&agents=8        mock office with N agents (1 to 8, default 4), for performance checks
 //   ?quality=low      low-quality mode (also saved from the HUD button)
+//   ?perf=1           performance probe: overlay plus window.__perf.snapshot() (perf.js)
 //
 // The backend decides what each agent does (visual_state); this file only passes the
 // events to the BehaviorController (behavior.js), which turns them into motion.
@@ -18,6 +20,7 @@ import { createPanel } from "./ui-panel.js";
 import { createHud } from "./ui-hud.js";
 import { createPolicyDialog } from "./ui-policy.js";
 import { createFeed } from "./ui-feed.js";
+import { startPerfProbe, createSlowFrameMonitor } from "./perf.js";
 
 const QUALITY_KEY = "kantor-agen.quality";
 const params = new URLSearchParams(location.search);
@@ -92,14 +95,24 @@ function connectEvents({ onSnapshot, onVisualState, onActivity, onStatus }) {
 
 // ---- mock mode ------------------------------------------------------------------------------
 
+const MOCK_AGENT_ROWS = Object.freeze([
+  { name: "Sari", role: "cashier" }, { name: "Budi", role: "stock" },
+  { name: "Wati", role: "finance" }, { name: "Joko", role: "marketing" },
+  { name: "Rina", role: "cashier" }, { name: "Agus", role: "stock" },
+  { name: "Dewi", role: "finance" }, { name: "Hadi", role: "marketing" },
+]);
+
+/** Number of mock agents from `?agents=N`: a whole number from 1 to 8, default 4. */
+export function mockAgentCount(search) {
+  const n = Number(new URLSearchParams(search).get("agents"));
+  return Number.isInteger(n) && n >= 1 && n <= MOCK_AGENT_ROWS.length ? n : 4;
+}
+
 const MOCK_OFFICE = Object.freeze({
   business: { id: 1, name: "Kantor Warung (demo)", type: "warung", paused: false },
-  agents: [
-    { id: "mock-1", name: "Sari", role: "cashier", desk_index: 0, paused: false },
-    { id: "mock-2", name: "Budi", role: "stock", desk_index: 1, paused: false },
-    { id: "mock-3", name: "Wati", role: "finance", desk_index: 2, paused: false },
-    { id: "mock-4", name: "Joko", role: "marketing", desk_index: 3, paused: false },
-  ],
+  agents: MOCK_AGENT_ROWS.slice(0, mockAgentCount(location.search)).map((a, i) => (
+    { id: `mock-${i + 1}`, name: a.name, role: a.role, desk_index: i, paused: false }
+  )),
   policy: {},   // the mock backend (ui-mock.js) supplies the policy and the spending
   spent_today_idr: 0,
   demo_mode: true,
@@ -112,11 +125,19 @@ const MOCK_SCRIPT = Object.freeze([
   { t: 0, agent: "mock-2", state: "working", bubble: "Counting stock" },
   { t: 0, agent: "mock-3", state: "idle" },
   { t: 0, agent: "mock-4", state: "paused" },
+  // Agents 5 to 8 only exist with ?agents=5 and up.
+  { t: 0, agent: "mock-5", state: "working", bubble: "Serving the counter" },
+  { t: 0, agent: "mock-6", state: "working", bubble: "Counting stock" },
+  { t: 0, agent: "mock-7", state: "idle" },
+  { t: 0, agent: "mock-8", state: "working", bubble: "Drafting a promo" },
   { t: 10, agent: "mock-2", state: "handoff", target: "mock-1", bubble: "Rice is low, please reorder" },
+  { t: 16, agent: "mock-6", state: "idle" },
   { t: 24, agent: "mock-2", state: "working", bubble: "Counting stock" },
   { t: 28, agent: "mock-3", state: "waiting", bubble: "Waiting for your approval" },
+  { t: 34, agent: "mock-7", state: "working", bubble: "Preparing the summary" },
   { t: 42, agent: "mock-3", state: "idle" },
   { t: 42, agent: "mock-4", state: "idle" },
+  { t: 50, agent: "mock-8", state: "idle" },
 ]);
 
 // Feeds MOCK_SCRIPT to the controller as visual_state events, driven by the frame clock.
@@ -157,6 +178,8 @@ async function main() {
     showFatal("Could not start the 3D office. This browser needs WebGL.");
     throw err;
   }
+  // ?perf=1 only: null otherwise, and then nothing below costs anything.
+  const perf = startPerfProbe(office, { getExtra: () => ({ agents: window.kantor?.characters?.size ?? 0, mock: MOCK }) });
   office.setLoadingProgress(0.1, "Loading characters");
 
   // The backend (or, with ?mock=1, an in-memory stand-in with the same methods).
@@ -182,6 +205,7 @@ async function main() {
     throw err;
   }
 
+  perf?.mark("assetsLoaded");
   controller = new BehaviorController({ idleDelay: MOCK ? [5, 9] : undefined });
   const characters = new Map();
   const agentInfo = new Map(); // agent id -> { name, role, paused }, from /api/office (used by the UI layer)
@@ -203,7 +227,7 @@ async function main() {
     }
     unusable.delete(id);
     office.addAgentDesk(index);
-    const character = createCharacter(assets, id, { quality: office.getQuality() });
+    const character = createCharacter(assets, id, { quality: office.getQuality(), name: agent.name });
     office.scene.add(character.object3D);
     characters.set(id, character);
     deskOf.set(id, index);
@@ -269,6 +293,7 @@ async function main() {
     hud.refreshSoon();
   });
 
+  perf?.mark("agentsCreated");
   hud.apply(data);
   activityFeed.load();
   const needsPolicy = data.policy?.is_set === false; // Requirement 1.3: ask before anything can spend
@@ -353,8 +378,7 @@ async function main() {
     qualityBtn.textContent = `Quality: ${low ? "Low" : "Normal"}`;
     qualityBtn.setAttribute("aria-pressed", String(low));
   }
-  qualityBtn.addEventListener("click", () => {
-    const next = office.getQuality() === "low" ? "normal" : "low";
+  function applyQuality(next) {
     office.setQuality(next);
     for (const c of characters.values()) c.setQuality(next);
     try {
@@ -363,8 +387,28 @@ async function main() {
       /* storage may be blocked; the choice then lasts for this visit only */
     }
     syncQualityButton();
-  });
+    document.getElementById("quality-hint").hidden = true; // the choice is made, whichever button made it
+    perf?.reset();
+  }
+  qualityBtn.addEventListener("click", () => applyQuality(office.getQuality() === "low" ? "normal" : "low"));
   syncQualityButton();
+
+  // Slow frames for a few seconds in normal mode: offer the low-quality mode. Never switches by itself.
+  const qualityHint = document.getElementById("quality-hint");
+  const slowMonitor = createSlowFrameMonitor();
+  const hideHint = () => { qualityHint.hidden = true; };
+  document.getElementById("quality-hint-yes").addEventListener("click", () => { hideHint(); applyQuality("low"); });
+  document.getElementById("quality-hint-no").addEventListener("click", hideHint);
+  // Real time between frames (the `dt` the office passes is capped at 0.1 s). A gap over 5 s is a
+  // pause (hidden tab, sleeping laptop), not a slow frame.
+  let lastFrameAt = 0;
+  office.onFrame(() => {
+    const t = performance.now();
+    const ms = lastFrameAt ? t - lastFrameAt : 0;
+    lastFrameAt = t;
+    if (slowMonitor.fired || office.getQuality() === "low" || ms > 5000) return;
+    if (slowMonitor.push(ms)) qualityHint.hidden = false;
+  });
 
   window.office = office; // handy for the console and for later modules
   // `step` lets tests fast-forward the simulation without rendering.

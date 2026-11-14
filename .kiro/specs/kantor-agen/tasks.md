@@ -9,20 +9,127 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1"] },
-    { "id": 1, "tasks": ["1.2", "2.1", "2.2", "2.3"] },
-    { "id": 2, "tasks": ["3.1", "4.1", "5.1", "5.2"] },
-    { "id": 3, "tasks": ["3.2", "3.3", "3.4", "3.5", "5.3"] },
-    { "id": 4, "tasks": ["5.4", "8.1", "8.2"] },
-    { "id": 5, "tasks": ["5.5", "5.6", "7.1", "8.3", "8.4"] },
-    { "id": 6, "tasks": ["6", "7.2", "7.3", "8.5", "8.6"] },
-    { "id": 7, "tasks": ["8.7", "8.8", "10.1"] },
-    { "id": 8, "tasks": ["9", "10.2", "10.3", "10.4", "11.1"] },
-    { "id": 9, "tasks": ["10.5", "10.6", "11.2"] },
-    { "id": 10, "tasks": ["11.3", "11.4"] },
-    { "id": 11, "tasks": ["12"] },
-    { "id": 12, "tasks": ["13.1", "13.2", "13.3"] },
-    { "id": 13, "tasks": ["13.4"] }
+    {
+      "id": 0,
+      "tasks": [
+        "1.1"
+      ]
+    },
+    {
+      "id": 1,
+      "tasks": [
+        "1.2",
+        "2.1",
+        "2.2",
+        "2.3"
+      ]
+    },
+    {
+      "id": 2,
+      "tasks": [
+        "3.1",
+        "4.1",
+        "5.1",
+        "5.2"
+      ]
+    },
+    {
+      "id": 3,
+      "tasks": [
+        "3.2",
+        "3.3",
+        "3.4",
+        "3.5",
+        "5.3"
+      ]
+    },
+    {
+      "id": 4,
+      "tasks": [
+        "5.4",
+        "8.1",
+        "8.2"
+      ]
+    },
+    {
+      "id": 5,
+      "tasks": [
+        "5.5",
+        "5.6",
+        "7.1",
+        "8.3",
+        "8.4"
+      ]
+    },
+    {
+      "id": 6,
+      "tasks": [
+        "6",
+        "7.2",
+        "7.3",
+        "8.5",
+        "8.6"
+      ]
+    },
+    {
+      "id": 7,
+      "tasks": [
+        "8.7",
+        "10.1",
+        "8.9"
+      ]
+    },
+    {
+      "id": 8,
+      "tasks": [
+        "8.8"
+      ]
+    },
+    {
+      "id": 9,
+      "tasks": [
+        "9",
+        "10.2",
+        "10.3",
+        "10.4",
+        "11.1"
+      ]
+    },
+    {
+      "id": 10,
+      "tasks": [
+        "10.5",
+        "10.6",
+        "11.2"
+      ]
+    },
+    {
+      "id": 11,
+      "tasks": [
+        "11.3",
+        "11.4"
+      ]
+    },
+    {
+      "id": 12,
+      "tasks": [
+        "12"
+      ]
+    },
+    {
+      "id": 13,
+      "tasks": [
+        "13.1",
+        "13.2",
+        "13.3"
+      ]
+    },
+    {
+      "id": 14,
+      "tasks": [
+        "13.4"
+      ]
+    }
   ]
 }
 ```
@@ -145,6 +252,9 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [ ] 8.8 Measure and tune performance
     - Check load time and frame rate with 8 agents in normal and low-quality mode
     - _Requirements: 2.10_
+  - [x] 8.9 Diversify character looks
+    - Mix male and female bodies, vary height, build, hair, and clothing so the staff do not all look like the same muscular man, and keep each agent's look the same on every reload
+    - _Requirements: 2.2_
 
 - [ ] 9. Checkpoint: skeleton demo
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office

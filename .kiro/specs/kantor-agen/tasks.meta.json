@@ -356,6 +356,16 @@
         "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794645211338
+      },
+      {
+        "executionId": "ab58063f-9ffc-4939-b595-21f825fa9134",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794659194653
+      },
+      {
+        "executionId": "99b662c9-c20c-431a-b59a-410b5a08286d",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794660118338
       }
     ],
     "9. Checkpoint: skeleton demo": [
@@ -598,6 +608,18 @@
         "executionId": "7222c8fc-0c44-43aa-b2f1-36f9c3b965cd",
         "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
         "timestamp": 1794654361995
+      }
+    ],
+    "8.9 Diversify character looks": [
+      {
+        "executionId": "dd2c3036-89ee-4857-b7f5-714be8f9a4fc",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794661272593
+      },
+      {
+        "executionId": "dd2c3036-89ee-4857-b7f5-714be8f9a4fc",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794664437152
       }
     ]
   }

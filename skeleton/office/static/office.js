@@ -764,11 +764,24 @@ export function createOffice(canvas, options = {}) {
     } else {
       window.addEventListener("resize", resize);
     }
-    renderer.setAnimationLoop(frame);
+    document.addEventListener("visibilitychange", onVisibility);
+    if (!document.hidden) renderer.setAnimationLoop(frame);
     return ready;
+  }
+  // A hidden tab neither updates nor renders (some browsers only slow requestAnimationFrame down).
+  // On return the clock restarts, so the paused time does not show up as one big step.
+  function onVisibility() {
+    if (!running) return;
+    if (document.hidden) {
+      renderer.setAnimationLoop(null);
+    } else {
+      lastTime = 0;
+      renderer.setAnimationLoop(frame);
+    }
   }
   function stop() {
     running = false;
+    document.removeEventListener("visibilitychange", onVisibility);
     renderer.setAnimationLoop(null);
     resizeObserver?.disconnect();
     resizeObserver = null;

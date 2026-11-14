@@ -17,6 +17,11 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+import {
+  stream, traitsForAgent, resolveGender, genderFromName, genderFromId, BEARD_ID,
+  SHIRT_COLORS, PANTS_COLORS, SHOE_COLORS, HAIR_COLORS, SKIN_TONES, BLOUSE_COLORS, MEN_SHIRT_COLORS, BATIK_COLORS,
+  HIJAB_COLORS, FEMALE_NAMES, MALE_NAMES,
+} from "./char-look.js";
 
 // ---- constants ---------------------------------------------------------------------
 
@@ -39,42 +44,14 @@ export const BEHAVIORS = Object.freeze([
   "idle", "walk", "sit", "sit_idle", "stand", "type", "talk", "wave", "raise_hand", "stretch", "drink",
 ]);
 
-// Fixed palettes. A look is picked from these by agent id only (Req 2.2).
-export const SHIRT_COLORS = Object.freeze([
-  ["teal", 0x2a9d8f], ["coral", 0xe76f51], ["mustard", 0xe9b44c], ["navy", 0x2b4a6f],
-  ["plum", 0x7b3f78], ["sage", 0x7da36a], ["sky", 0x5aa9e6], ["brick", 0xb5483a],
-  ["cream", 0xefe9dc], ["charcoal", 0x4a4e57], ["rose", 0xd98ba3], ["olive", 0x8a8f3d],
-]);
-export const PANTS_COLORS = Object.freeze([
-  ["ink", 0x25324a], ["graphite", 0x3a3d44], ["khaki", 0xb3a07a], ["bark", 0x5b4636],
-  ["black", 0x1f2125], ["denim", 0x3f5f8a],
-]);
-export const SHOE_COLORS = Object.freeze([
-  ["black", 0x1c1c1f], ["brown", 0x4a3426], ["white", 0xe8e6e1], ["grey", 0x6b6e75],
-]);
-export const HAIR_COLORS = Object.freeze([
-  ["black", 0x1d1b1b], ["dark brown", 0x3a281d], ["brown", 0x5b3d28], ["chestnut", 0x7a4a2a],
-  ["auburn", 0x8a3b21], ["ginger", 0xb0561f], ["blonde", 0xd3b06a], ["ash", 0x9a958f], ["silver", 0xcfcfcf],
-]);
-// Skin tone = multiplier on the skin texture (the Dark and Light textures are almost the same).
-// `variant` is the texture used with it.
-export const SKIN_TONES = Object.freeze([
-  { name: "fair", variant: "light", rgb: [1.16, 1.07, 1.02] },
-  { name: "light", variant: "light", rgb: [1.06, 0.98, 0.93] },
-  { name: "medium", variant: "light", rgb: [0.92, 0.82, 0.74] },
-  { name: "tan", variant: "dark", rgb: [0.86, 0.72, 0.62] },
-  { name: "brown", variant: "dark", rgb: [0.66, 0.51, 0.42] },
-  { name: "deep", variant: "dark", rgb: [0.46, 0.34, 0.29] },
-]);
+// The look (gender, palettes, proportions, clothes) is pure data picked by agent id in char-look.js.
+// The palettes are re-exported here for callers that import them from this module.
+export {
+  SHIRT_COLORS, PANTS_COLORS, SHOE_COLORS, HAIR_COLORS, SKIN_TONES, BLOUSE_COLORS, MEN_SHIRT_COLORS, BATIK_COLORS,
+  HIJAB_COLORS, FEMALE_NAMES, MALE_NAMES, resolveGender, genderFromName, genderFromId,
+};
 // The hair texture is a light grey, so a tint multiplies it down. Compensate a bit.
 const HAIR_GAIN = 1.45;
-// Hair styles per body. Only styles the pack suggests for that body are used.
-const HAIR_BY_BODY = Object.freeze({
-  male: ["hair_buzzed", "hair_simpleparted"],
-  female: ["hair_buns", "hair_long", "hair_buzzedfemale"],
-});
-const BEARD_ID = "hair_beard";
-const BEARD_CHANCE = 0.35;
 
 // Desk geometry in the character frame while seated at a desk (see office.js / layout.js):
 // the pelvis is above the seat, the keyboard is 0.55 m in front of the seat, the desk top is 0.73 m.
@@ -89,32 +66,6 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const smooth = (x) => { const t = clamp(x, 0, 1); return t * t * (3 - 2 * t); };
 const smoother = (x) => { const t = clamp(x, 0, 1); return t * t * t * (t * (t * 6 - 15) + 10); };
 const approach = (v, goal, step) => (v < goal ? Math.min(goal, v + step) : Math.max(goal, v - step));
-
-/** 32-bit string hash (FNV-1a). */
-function hash32(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-/** mulberry32 PRNG: a function returning floats in [0, 1). */
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-/** One independent random stream per (agent, trait): adding a trait never changes the others. */
-function stream(agentId, salt) {
-  return mulberry32(hash32(`${agentId}\u0000${salt}`));
-}
-const pick = (rng, list) => list[Math.floor(rng() * list.length) % list.length];
 
 // ---- loading -----------------------------------------------------------------------
 
@@ -155,6 +106,7 @@ function buildClothAttribute(mesh) {
   const si = geo.getAttribute("skinIndex");
   const sw = geo.getAttribute("skinWeight");
   const out = new Float32Array(pos.count * 4);
+  const bindOut = new Float32Array(pos.count * 3); // bind-pose position (metres), drives shirt patterns
   const v = new THREE.Vector3();
   const ab = new THREE.Vector3();
   const ap = new THREE.Vector3();
@@ -177,6 +129,7 @@ function buildClothAttribute(mesh) {
   });
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix);
+    bindOut[i * 3] = v.x; bindOut[i * 3 + 1] = v.y; bindOut[i * 3 + 2] = v.z;
     let x = 0, y = 0, z = 0, w = 0;
     for (let k = 0; k < 4; k++) {
       const wt = sw.getComponent(i, k);
@@ -205,6 +158,46 @@ function buildClothAttribute(mesh) {
     out[i * 4] = x; out[i * 4 + 1] = y; out[i * 4 + 2] = z; out[i * 4 + 3] = w;
   }
   geo.setAttribute("aCloth", new THREE.BufferAttribute(out, 4));
+  geo.setAttribute("aBind", new THREE.BufferAttribute(bindOut, 3));
+}
+
+/** Absolute, normalized URL ("a/../b" becomes "b"), so the same file always has the same cache key. */
+function normalizeUrl(url) {
+  if (/^(data|blob):/i.test(url)) return url;
+  try {
+    return new URL(url, globalThis.location?.href ?? import.meta.url).href;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Every character and hair file lists the same PNGs (skin, hair, eyes) as its own textures, so
+ * after loading, the 8 agents' 10 files hold dozens of copies. With the URL cache on, copies of
+ * one file wrap the same decoded image. Give those textures one shared `Source`, and three.js
+ * uploads that image to the GPU once. Returns the number of textures that were re-pointed.
+ */
+export function shareTextureSources(roots) {
+  const byImage = new Map(); // decoded image -> the Source everyone should use
+  let shared = 0;
+  for (const root of roots) {
+    root.traverse((o) => {
+      if (!o.material) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        for (const t of Object.values(m)) {
+          const image = t?.isTexture ? t.source?.data : null;
+          if (!image) continue;
+          const first = byImage.get(image);
+          if (!first) byImage.set(image, t.source);
+          else if (t.source !== first) {
+            t.source = first;
+            shared++;
+          }
+        }
+      }
+    });
+  }
+  return shared;
 }
 
 /**
@@ -226,7 +219,12 @@ export async function loadAssets(manifest, onProgress, options = {}) {
     if (!res.ok) throw new Error(`could not load ${url}: ${res.status}`);
     manifest = await res.json();
   }
-  const loader = new GLTFLoader();
+  // The URL cache lets the 10 glTF files share the 14 PNGs they list (see shareTextureSources).
+  const cacheWasOn = THREE.Cache.enabled;
+  THREE.Cache.enabled = true;
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier(normalizeUrl);
+  const loader = new GLTFLoader(manager);
   // One progress slot per file. Fractions of finished files are 1, others use byte progress.
   const jobs = [];
   const add = (kind, def) => jobs.push({ kind, def, url: new URL(def.file, baseUrl).href, frac: 0, weight: kind === "anim" ? 3 : 1 });
@@ -240,18 +238,25 @@ export async function loadAssets(manifest, onProgress, options = {}) {
     report({ loaded: doneCount, total: jobs.length, fraction: clamp(f, 0, 1), label });
   };
   emit("Loading characters");
-  const results = await Promise.all(jobs.map(async (job) => {
-    const gltf = await loader.loadAsync(job.url, (ev) => {
-      if (ev.lengthComputable && ev.total > 0) {
-        job.frac = Math.max(job.frac, Math.min(0.95, ev.loaded / ev.total));
-        emit(`Loading ${job.def.id}`);
-      }
-    });
-    job.frac = 1;
-    doneCount++;
-    emit(`Loaded ${job.def.id}`);
-    return { job, gltf };
-  }));
+  let results;
+  try {
+    results = await Promise.all(jobs.map(async (job) => {
+      const gltf = await loader.loadAsync(job.url, (ev) => {
+        if (ev.lengthComputable && ev.total > 0) {
+          job.frac = Math.max(job.frac, Math.min(0.95, ev.loaded / ev.total));
+          emit(`Loading ${job.def.id}`);
+        }
+      });
+      job.frac = 1;
+      doneCount++;
+      emit(`Loaded ${job.def.id}`);
+      return { job, gltf };
+    }));
+  } finally {
+    THREE.Cache.enabled = cacheWasOn;
+    THREE.Cache.clear(); // the decoded images now live in the textures only
+  }
+  shareTextureSources(results.map((r) => r.gltf.scene));
 
   const assets = {
     manifest,
@@ -337,32 +342,13 @@ export async function loadAssets(manifest, onProgress, options = {}) {
 // ---- looks (seeded by agent id) ------------------------------------------------------
 
 /**
- * Pick the look of an agent. Pure function of `agentId` (and the catalogue of `assets`),
- * so the same agent looks the same on every reload (Req 2.2). Returns plain data.
+ * Pick the look of an agent. Pure function of the agent id, the options and the catalogue of
+ * `assets`, so the same agent looks the same on every reload (Req 2.2). Returns plain data (see
+ * `traitsForAgent` in char-look.js). Gender comes from `overrides.gender`, then the agent's
+ * `overrides.name`, then the id. `overrides.look` replaces any seeded field.
  */
 export function lookForAgent(agentId, assets, overrides = {}) {
-  const id = String(agentId);
-  const body = overrides.body ?? (stream(id, "body")() < 0.5 ? "male" : "female");
-  const tone = overrides.skinTone ? SKIN_TONES.find((t) => t.name === overrides.skinTone) ?? SKIN_TONES[1] : pick(stream(id, "skin"), SKIN_TONES);
-  const hairIds = HAIR_BY_BODY[body].filter((h) => !assets || assets.hair.has(h));
-  const hairId = overrides.hair ?? pick(stream(id, "hair"), hairIds.length ? hairIds : HAIR_BY_BODY[body]);
-  const beard = body === "male" && (assets ? assets.hair.has(BEARD_ID) : true) && stream(id, "beard")() < BEARD_CHANCE;
-  const [hairName, hairHex] = pick(stream(id, "haircolor"), HAIR_COLORS);
-  const [shirtName, shirtHex] = pick(stream(id, "shirt"), SHIRT_COLORS);
-  const [pantsName, pantsHex] = pick(stream(id, "pants"), PANTS_COLORS);
-  const [shoeName, shoeHex] = pick(stream(id, "shoes"), SHOE_COLORS);
-  return {
-    agentId: id,
-    body,
-    bodyId: `superhero_${body}_${tone.variant}`,
-    skin: { name: tone.name, variant: tone.variant, rgb: tone.rgb },
-    hair: { id: hairId, color: { name: hairName, hex: hairHex } },
-    beard,
-    shirt: { name: shirtName, hex: shirtHex },
-    pants: { name: pantsName, hex: pantsHex },
-    shoes: { name: shoeName, hex: shoeHex },
-    longSleeves: stream(id, "sleeves")() < 0.4,
-  };
+  return traitsForAgent(agentId, { ...overrides, availableHair: assets ? [...assets.hair.keys()] : undefined });
 }
 
 /** Where `object3D` goes so that a seated character's pelvis is over `seat` (x, z) at yaw `rotation`. */
@@ -378,6 +364,8 @@ function makeBodyMaterial(base, look) {
   m.color.setRGB(look.skin.rgb[0], look.skin.rgb[1], look.skin.rgb[2], THREE.LinearSRGBColorSpace);
   const uniforms = {
     uShirt: { value: new THREE.Color(look.shirt.hex) },
+    uShirt2: { value: new THREE.Color(look.pattern.hex2 ?? look.shirt.hex) },
+    uPattern: { value: look.pattern.id },
     uPants: { value: new THREE.Color(look.pants.hex) },
     uShoes: { value: new THREE.Color(look.shoes.hex) },
     uLong: { value: look.longSleeves ? 1 : 0 },
@@ -386,22 +374,62 @@ function makeBodyMaterial(base, look) {
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute vec4 aCloth;\nvarying vec4 vCloth;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCloth = aCloth;");
+      .replace("#include <common>", "#include <common>\nattribute vec4 aCloth;\nattribute vec3 aBind;\nvarying vec4 vCloth;\nvarying vec3 vBind;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCloth = aCloth;\nvBind = aBind;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec4 vCloth;\nuniform vec3 uShirt;\nuniform vec3 uPants;\nuniform vec3 uShoes;\nuniform float uLong;")
+      .replace("#include <common>", `#include <common>
+varying vec4 vCloth;
+varying vec3 vBind;
+uniform vec3 uShirt;
+uniform vec3 uShirt2;
+uniform vec3 uPants;
+uniform vec3 uShoes;
+uniform float uLong;
+uniform float uPattern;
+// Shirt pattern from the bind-pose position (cylindrical around the body), so it follows the
+// body and needs no UVs. 0 plain, 1 stripes, 2 checks, 3 batik-like diamonds and dots.
+// aa is the size of one pixel in cells: when a cell is about a pixel, the pattern fades to its
+// average colour instead of shimmering.
+vec3 shirtPattern(vec3 base) {
+  if (uPattern < 0.5) return base;
+  vec2 q = vec2(atan(vBind.x, vBind.z) * 0.17, vBind.y);
+  vec2 w = max(fwidth(q), vec2(1e-4));
+  float m, aa, avg;
+  if (uPattern < 1.5) {                      // thin vertical stripes, 3.5 cm apart
+    aa = w.x / 0.035;
+    m = 1.0 - smoothstep(0.10, 0.10 + aa, abs(fract(q.x / 0.035) - 0.5));
+    avg = 0.2;
+  } else if (uPattern < 2.5) {               // checks: 5 cm cells with a thin line on every cell edge
+    aa = max(w.x, w.y) / 0.05;
+    vec2 e = 0.5 - abs(fract(q / 0.05) - 0.5);
+    m = 1.0 - smoothstep(0.06, 0.06 + aa, min(e.x, e.y));
+    avg = 0.22;
+  } else {                                   // batik: a thin diamond lattice with a dot in every diamond, 8 cm cells
+    vec2 cell = q / 0.08;
+    vec2 g = fract(cell) - 0.5;
+    vec2 h = fract(cell + 0.5) - 0.5;
+    aa = max(w.x, w.y) / 0.08;
+    float outline = 1.0 - smoothstep(0.02, 0.02 + aa, abs(abs(g.x) + abs(g.y) - 0.34));
+    float dot1 = 1.0 - smoothstep(0.08, 0.08 + aa, length(g));
+    float dot2 = 1.0 - smoothstep(0.05, 0.05 + aa, length(h));
+    m = clamp(outline * 0.9 + dot1 + dot2 * 0.8, 0.0, 1.0);
+    avg = 0.28;
+  }
+  float near = 1.0 - smoothstep(0.25, 0.6, aa);
+  return mix(base, uShirt2, mix(avg, m, near));
+}`)
       .replace("#include <map_fragment>", `#include <map_fragment>
 {
   float shirtAmt = vCloth.x + vCloth.w * uLong;
   float tot = shirtAmt + vCloth.y + vCloth.z;
   float cover = smoothstep(0.45, 0.62, tot);
   float inv = 1.0 / max(tot, 1e-3);
-  vec3 cloth = mix(uShirt, uPants, smoothstep(0.4, 0.6, vCloth.y * inv));
+  vec3 cloth = mix(shirtPattern(uShirt), uPants, smoothstep(0.4, 0.6, vCloth.y * inv));
   cloth = mix(cloth, uShoes, smoothstep(0.4, 0.6, vCloth.z * inv));
   diffuseColor.rgb = mix(diffuseColor.rgb, cloth, cover);
 }`);
   };
-  m.customProgramCacheKey = () => "kantor-cloth-v1";
+  m.customProgramCacheKey = () => "kantor-cloth-v2";
   return m;
 }
 
@@ -453,6 +481,62 @@ function measureGround(assets, src, pelvisK) {
   return ground;
 }
 
+// ---- body proportions ------------------------------------------------------------------
+// The pack has one broad, muscular body per gender. Per character we change it with bone scales
+// (cheap, the geometry and the clips stay shared; scale tracks are not in the clips):
+//   model     uniform scale = height (about the floor)
+//   spine_01  x = shoulder and chest width, z = depth. The clavicles and arms hang below it, so
+//             shoulders get narrower and arms thinner with it.
+//   neck_01   the inverse of the spine scale, so the neck and head keep their size
+//   upperarm  extra thinning of the arm (the forearm inherits it)
+//   hand      the inverse of the arm thinning, so hands keep their size
+// Bone y axes run along the bones, x and z across them, so none of this changes bone lengths.
+function applyBuild(model, bones, build) {
+  model.scale.setScalar(build.height);
+  bones.spine_01.scale.set(build.width, 1, build.depth);
+  bones.neck_01.scale.set(1 / build.width, 1, 1 / build.depth);
+  for (const side of ["l", "r"]) {
+    bones[`upperarm_${side}`].scale.set(build.arm, 1, build.arm);
+    bones[`hand_${side}`].scale.set(1 / build.arm, 1, 1 / build.arm);
+  }
+}
+
+// ---- headscarf -------------------------------------------------------------------------
+// A tinted cloth shell on the Head bone: a lathe around the head and neck down to the collar bones,
+// with an oval opening for the face cut in the fragment shader. Shared geometry, own material.
+// Numbers are in the Head bone's space (x across, y up, z forward) measured on the pack's head:
+// skull x +-0.089, y 0.036 (chin) to 0.217 (top), z -0.104 (back) to 0.122 (nose).
+const HIJAB_PROFILE = [
+  [0.150, -0.150], [0.125, -0.115], [0.095, -0.080], [0.082, -0.040], [0.090, 0.000], [0.098, 0.050],
+  [0.103, 0.090], [0.105, 0.140], [0.097, 0.185], [0.075, 0.215], [0.040, 0.232], [0.000, 0.238],
+];
+let _hijabGeo = null;
+function makeHijab(hex, label) {
+  _hijabGeo ??= new THREE.LatheGeometry(HIJAB_PROFILE.map(([r, y]) => new THREE.Vector2(r, y)), 40);
+  const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.92, metalness: 0 });
+  mat.name = `hijab:${label}`;
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vShell;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvShell = position;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vShell;")
+      .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>
+  { // oval opening for the face (front of the head only)
+    vec2 f = vec2(vShell.x / 0.073, (vShell.y - 0.113) / 0.09);
+    if (vShell.z > 0.0 && dot(f, f) < 1.0) discard;
+  }`);
+  };
+  mat.customProgramCacheKey = () => "kantor-hijab-v1";
+  const mesh = new THREE.Mesh(_hijabGeo, mat);
+  mesh.name = "hijab";
+  mesh.scale.set(0.93, 1, 1);
+  mesh.position.set(0, 0, 0.008);
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  return mesh;
+}
+
 // ---- the character -------------------------------------------------------------------
 
 const _v1 = new THREE.Vector3();
@@ -481,6 +565,9 @@ const PROC_BONES = [
  * Build one character for `agentId`.
  *
  * options:
+ *   gender, name           "male" | "female", and the agent's display name. Gender is the explicit
+ *                          option, else a common Indonesian first name, else alternation by id.
+ *   look                   partial look (see `traitsForAgent`) that replaces seeded fields
  *   body, hair, skinTone   force a part of the look (the rest stays seeded)
  *   quality                "normal" | "low" (low hides eyebrows and beard)
  *   castShadow             default true
@@ -499,6 +586,7 @@ export function createCharacter(assets, agentId, options = {}) {
   const model = SkeletonUtils.clone(src.scene);
   object3D.add(model);
   const bones = bonesByName(model);
+  applyBuild(model, bones, look.build);
   const ownMaterials = [];
   const meshes = skinnedMeshes(model);
   let browMesh = null;
@@ -561,7 +649,13 @@ export function createCharacter(assets, agentId, options = {}) {
     extras.push(mesh);
     return mesh;
   }
-  addHair(look.hair.id, look.hair.color.hex);
+  if (look.hair.id) addHair(look.hair.id, look.hair.color.hex);
+  if (look.hijab) {
+    const hijab = makeHijab(look.hijab.hex, look.agentId);
+    hijab.castShadow = options.castShadow !== false;
+    ownMaterials.push(hijab.material);
+    bones.Head.add(hijab);
+  }
   const beardMesh = look.beard ? addHair(BEARD_ID, look.hair.color.hex) : null;
 
   // ---- animation ----
@@ -584,8 +678,17 @@ export function createCharacter(assets, agentId, options = {}) {
   const pelvisK = src.pelvisRestY / assets.mannequinPelvisY; // character legs are about 3.5% longer
   const pelvisRaw = bones.pelvis.position.clone();
   const ground = measureGround(assets, src, pelvisK);
-  const groundFor = (key) => (key === "walk" ? ground.walk : key && key.startsWith("sit") ? ground.sit : key === "stand_up" ? ground.sit : ground.idle);
-  let lift = ground.idle;
+  // Height scales the model about the floor, so the sole offset scales with it. A seated person
+  // keeps the pelvis on the cushion: a shorter character is lifted half of the missing leg length
+  // (feet hover a little under the desk, the hips sink less), a taller one is not pushed down.
+  const hs = look.build.height;
+  const seatComp = Math.max(0, 1 - hs) * SEAT_PELVIS_HEIGHT * 0.5;
+  const groundFor = (key) => {
+    if (key === "walk") return ground.walk * hs;
+    if ((key && key.startsWith("sit")) || key === "stand_up") return ground.sit * hs + seatComp;
+    return ground.idle * hs;
+  };
+  let lift = ground.idle * hs;
 
   function actionFor(key) {
     let a = actions.get(key);
@@ -994,10 +1097,22 @@ export function createCharacter(assets, agentId, options = {}) {
     applyLook(dt, gaze);
   }
 
+  // Low quality also drops the normal and roughness maps of this character's own materials. The
+  // textures stay on the shared assets, so switching back to normal restores them. On the first
+  // frame in low mode they are never uploaded to the GPU at all (about 16 MB per body, 5 MB per hair).
+  const detailMaps = ownMaterials.map((m) => ({ m, normalMap: m.normalMap ?? null, roughnessMap: m.roughnessMap ?? null }));
   function setQuality(q) {
     const low = q === "low";
     if (browMesh) browMesh.visible = !low;
     if (beardMesh) beardMesh.visible = !low;
+    for (const d of detailMaps) {
+      const normalMap = low ? null : d.normalMap;
+      const roughnessMap = low ? null : d.roughnessMap;
+      if (d.m.normalMap === normalMap && d.m.roughnessMap === roughnessMap) continue;
+      d.m.normalMap = normalMap;
+      d.m.roughnessMap = roughnessMap;
+      d.m.needsUpdate = true;
+    }
   }
   setQuality(options.quality ?? "normal");
 

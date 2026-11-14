@@ -23,6 +23,7 @@ All packs below were downloaded on 2026-11-14 from the official author pages.
 - Downloaded: 2026-11-14
 - Used: Superhero Male and Superhero Female rigged bodies (glTF), the Light skin textures, and six rigged hairstyles.
 - Changes: textures downscaled from 2048 to 1024 px, texture paths rewritten, two broken texture references fixed, and `*_Light.gltf` copies that use the Light skin texture. Details are in `manifest.json` under `modifications`.
+- Procedural changes at run time (no asset file is edited): per-character height and bone scales (narrower shoulders, thinner arms), tinted clothes with a procedural stripe, check or batik-like pattern, and a generated headscarf mesh. The mesh, textures and clips stay the pack's. See `skeleton/office/static/characters.js` and `char-look.js`.
 
 ### Universal Animation Library (Standard, free tier)
 
