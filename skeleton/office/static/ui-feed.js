@@ -46,8 +46,14 @@ export function createFeed({ root, api, agentInfo }) {
       dot.setAttribute("role", "img");
       dot.setAttribute("aria-label", actionStatusLabel(r.status));
       const text = el("span", "feed-text");
-      text.append(el("strong", null, who), document.createTextNode(` ${String(r.action ?? "")}`));
-      if (r.reason) text.title = String(r.reason);
+      const line = el("span", "feed-line");
+      line.append(el("strong", null, who), document.createTextNode(` ${String(r.action ?? "")}`));
+      text.append(line);
+      if (r.reason) {
+        // The reason is what tells "Sari read" apart from the next "Sari read" (Requirement 7.1).
+        text.append(el("span", "feed-reason", String(r.reason)));
+        text.title = String(r.reason);
+      }
       li.append(time, dot, text);
       if (r.cost_idr > 0) li.append(el("span", "feed-cost", formatRupiah(r.cost_idr)));
       return li;

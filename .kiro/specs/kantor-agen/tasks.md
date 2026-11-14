@@ -279,7 +279,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 10.5 Add onboarding, seed data, and the app entry point
     - Ask for business type and name, force the policy setup before any spending, and load demo data
     - _Requirements: 1.1, 1.2, 1.3, 10.1, 10.3_
-  - [ ]* 10.6 Write a smoke test
+  - [x]* 10.6 Write a smoke test
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
 
@@ -293,7 +293,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 11.3 Add onboarding, seed data, and the app entry point
     - Reuse the skeleton onboarding with Kantor Jasa roles and demo data
     - _Requirements: 1.1, 1.2, 9.2, 10.1, 10.3_
-  - [ ]* 11.4 Write a smoke test
+  - [-]* 11.4 Write a smoke test
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
   - [x] 11.5 Pace agent work so staff are visibly working
@@ -301,7 +301,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Pacing is on by default in the live apps, off in tests, and documented honestly
     - _Requirements: 2.5, 2.8, 3.2_
 
-- [ ] 12. Checkpoint: both applications
+- [-] 12. Checkpoint: both applications
   - Run the full test suite and run both applications end to end; ask the owner if anything needs to change
 
 - [ ] 13. Documentation and submission material

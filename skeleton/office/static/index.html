@@ -33,6 +33,7 @@
     </div>
     <div class="hud-right">
       <span id="paused-badge" class="badge badge-paused" role="status" hidden>Paused</span>
+      <button id="rules-btn" type="button" class="hud-btn" title="Change the daily spending limit and the blocked actions">Rules</button>
       <button id="pause-btn" type="button" class="hud-btn hud-btn-pause" disabled aria-label="Pause all agents">Pause</button>
       <button id="quality-btn" type="button" class="hud-btn" aria-pressed="false" title="Switch between normal and low quality">Quality: Normal</button>
     </div>
@@ -118,6 +119,7 @@
         </fieldset>
         <p id="policy-error" class="field-error" role="alert" hidden></p>
         <div class="modal-actions">
+          <button id="policy-cancel" type="button" class="hud-btn" hidden>Cancel</button>
           <button id="policy-submit" type="submit" class="btn-primary">Save and start</button>
         </div>
       </form>

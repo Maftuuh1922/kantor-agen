@@ -30,6 +30,7 @@ export function createPolicyDialog({ api, onSaved }) {
   const blockedBox = $("policy-blocked");
   const blockedError = $("policy-blocked-error");
   const submit = $("policy-submit");
+  const cancel = $("policy-cancel");
   const formError = $("policy-error");
 
   // One checkbox per action type.
@@ -51,6 +52,10 @@ export function createPolicyDialog({ api, onSaved }) {
 
   let opener = null;
   let saving = false;
+  // false: the first-run dialog (cannot be dismissed). true: the owner reopened it with the Rules button to
+  // change the limit later (Requirement 8.2): it starts with the saved values and can be cancelled.
+  let editing = false;
+  const submitLabel = () => (editing ? "Save" : "Save and start");
 
   function setError(node, input, message) {
     node.textContent = message ?? "";
@@ -83,10 +88,15 @@ export function createPolicyDialog({ api, onSaved }) {
     return [...root.querySelectorAll("input, button")].filter((n) => !n.disabled && !n.hidden);
   }
 
-  function show() {
+  /** @param current  the saved policy ({ is_set, daily_limit_idr, blocked_actions }) when the owner edits it later */
+  function show(current) {
+    editing = current?.is_set === true && Number.isSafeInteger(current.daily_limit_idr);
     opener = document.activeElement;
-    limitInput.value = String(DEFAULT_LIMIT_IDR);
-    for (const box of boxes.values()) box.checked = false;
+    limitInput.value = String(editing ? current.daily_limit_idr : DEFAULT_LIMIT_IDR);
+    const blocked = new Set(editing && Array.isArray(current.blocked_actions) ? current.blocked_actions : []);
+    for (const [id, box] of boxes) box.checked = blocked.has(id);
+    cancel.hidden = !editing;
+    submit.textContent = submitLabel();
     setError(limitError, limitInput, "");
     setError(blockedError, null, "");
     setError(formError, null, "");
@@ -116,6 +126,7 @@ export function createPolicyDialog({ api, onSaved }) {
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
+      if (editing && !saving) hide(); // the first-run dialog ignores Escape
       return;
     }
     if (e.key !== "Tab") return;
@@ -130,6 +141,10 @@ export function createPolicyDialog({ api, onSaved }) {
       e.preventDefault();
       first.focus();
     }
+  });
+
+  cancel.addEventListener("click", () => {
+    if (editing && !saving) hide();
   });
 
   form.addEventListener("submit", async (e) => {
@@ -155,7 +170,7 @@ export function createPolicyDialog({ api, onSaved }) {
     } finally {
       saving = false;
       submit.disabled = false;
-      submit.textContent = "Save and start";
+      submit.textContent = submitLabel();
     }
   });
 

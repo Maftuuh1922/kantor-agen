@@ -307,6 +307,10 @@ async function main() {
   });
   const activityFeed = createFeed({ root: document.getElementById("activity-feed"), api, agentInfo: lookup });
   const policyDialog = createPolicyDialog({ api, onSaved: (policy) => hud.setPolicy(policy) });
+  // Requirement 8.2: the owner can change the limit later. The new limit applies to the next action.
+  document.getElementById("rules-btn")?.addEventListener("click", () => {
+    if (!policyDialog.isOpen && hud.office?.policy?.is_set) policyDialog.show(hud.office.policy);
+  });
   window.addEventListener("kantor:activity", (e) => {
     activityFeed.push(e.detail);
     panel.handleActivity(e.detail);

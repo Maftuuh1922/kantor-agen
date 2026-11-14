@@ -223,14 +223,21 @@ class SimulatedSalesFeed:
 
     def __init__(self, seed: int = 0) -> None:
         self.seed = seed
+        # Which 5-minute slot was polled last, and how many times. With a short heartbeat
+        # (``--interval 10``) one slot is polled many times; each poll must be a new set of
+        # customers, not the same basket again. The first poll of a slot (the only one with
+        # the default 300 s interval) keeps its original seed.
+        self._slot: str | None = None
+        self._polls_in_slot = 0
 
     def poll(self, ctx: BusinessContext) -> list[dict]:
         local = ctx.clock.now().astimezone(JAKARTA)
         if not self.OPEN_HOUR <= local.hour < self.CLOSE_HOUR:
             return []
-        rng = random.Random(
-            f"{self.seed}|{local.date().isoformat()}|{local.hour}|{local.minute // self.SLOT_MINUTES}"
-        )
+        slot = f"{self.seed}|{local.date().isoformat()}|{local.hour}|{local.minute // self.SLOT_MINUTES}"
+        self._polls_in_slot = self._polls_in_slot + 1 if slot == self._slot else 0
+        self._slot = slot
+        rng = random.Random(slot if self._polls_in_slot == 0 else f"{slot}|{self._polls_in_slot}")
         weight = self.DAY_WEIGHT[local.weekday()] * (1.6 if local.hour in self.PEAK_HOURS else 1.0)
         chance = min(0.9, self.BASE_CHANCE * weight)
         count = sum(rng.random() < chance for _ in range(self.MAX_SALES))
