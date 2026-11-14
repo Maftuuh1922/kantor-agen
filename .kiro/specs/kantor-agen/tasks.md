@@ -256,7 +256,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Mix male and female bodies, vary height, build, hair, and clothing so the staff do not all look like the same muscular man, and keep each agent's look the same on every reload
     - _Requirements: 2.2_
 
-- [-] 9. Checkpoint: skeleton demo
+- [x] 9. Checkpoint: skeleton demo
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office
 
 - [ ] 10. Kantor Warung application
@@ -264,10 +264,10 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - `record_sale` and `receive_purchase` update stock in the same transaction as the sale or purchase row
     - Reject a sale larger than the stock without applying it
     - _Requirements: 6.1, 6.2_
-  - [ ]* 10.2 Write property test for non-negative stock
+  - [x]* 10.2 Write property test for non-negative stock
     - **Property 1: Stock never negative**
     - **Validates: Requirements 6.1**
-  - [ ]* 10.3 Write property test for exact sale totals
+  - [x]* 10.3 Write property test for exact sale totals
     - **Property 2: Sale total is exact**
     - **Validates: Requirements 6.2**
   - [x] 10.4 Implement the cashier, stock, finance, and marketing roles
@@ -275,7 +275,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Marketing agent drafts a promo after sales fall for three days in a row
     - Finance agent prepares the daily summary
     - _Requirements: 1.2, 3.2, 6.3_
-  - [ ] 10.5 Add onboarding, seed data, and the app entry point
+  - [x] 10.5 Add onboarding, seed data, and the app entry point
     - Ask for business type and name, force the policy setup before any spending, and load demo data
     - _Requirements: 1.1, 1.2, 1.3, 10.1, 10.3_
   - [ ]* 10.6 Write a smoke test
@@ -286,7 +286,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 11.1 Implement the data layer for bookings, invoices, and customers
     - An invoice must not change after the owner or policy approves it
     - _Requirements: 5.1, 6.2_
-  - [ ] 11.2 Implement the booking, billing, and follow-up roles
+  - [-] 11.2 Implement the booking, billing, and follow-up roles
     - Booking agent confirms slots, billing agent drafts invoices, follow-up agent drafts reminders into the outbox
     - _Requirements: 1.2, 3.2, 5.4_
   - [ ] 11.3 Add onboarding, seed data, and the app entry point

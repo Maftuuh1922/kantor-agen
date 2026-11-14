@@ -57,7 +57,45 @@
     <p id="feed-empty" class="feed-empty">No actions yet.</p>
   </aside>
 
-  <!-- First run: the owner sets the policy before any agent can spend (Requirement 1.3). -->
+  <!-- First run, step 1: business name and type (Requirements 1.1, 1.2). Filled in by ui-onboarding.js. -->
+  <main id="onboarding" class="onboarding" lang="id" aria-labelledby="onboarding-title" hidden>
+    <div class="onboarding-card">
+      <p class="onboarding-brand">Kantor Agen</p>
+      <h1 id="onboarding-title" class="onboarding-title">Selamat datang di Kantor Agen</h1>
+      <p class="onboarding-intro">
+        Kantor 3D berisi staf AI yang bekerja sendiri untuk usahamu. Isi dua hal ini dulu. Cukup sekali.
+      </p>
+      <form id="onboarding-form" novalidate>
+        <div class="field">
+          <label for="onboarding-name" class="field-label">Nama usaha</label>
+          <input id="onboarding-name" name="name" type="text" maxlength="60" autocomplete="organization"
+                 spellcheck="false" placeholder="Contoh: Warung Bu Tini"
+                 aria-describedby="onboarding-name-help onboarding-name-error">
+          <p id="onboarding-name-help" class="field-help">Nama ini tampil di bagian atas kantor. Maksimal 60 huruf.</p>
+          <p id="onboarding-name-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <fieldset class="field" aria-describedby="onboarding-type-error">
+          <legend class="field-label">Jenis usaha</legend>
+          <div id="onboarding-types" class="type-grid"></div>
+          <p id="onboarding-type-error" class="field-error" role="alert" hidden></p>
+        </fieldset>
+        <section class="onboarding-preview" aria-labelledby="onboarding-preview-title" aria-live="polite">
+          <h2 id="onboarding-preview-title" class="onboarding-preview-title">Staf AI yang akan bekerja untukmu</h2>
+          <p id="onboarding-preview-hint" class="field-help">Pilih jenis usaha untuk melihat siapa yang akan bekerja.</p>
+          <ul id="onboarding-preview-list" class="staff-list" hidden></ul>
+        </section>
+        <p id="onboarding-error" class="field-error" role="alert" hidden></p>
+        <div class="onboarding-actions">
+          <p class="onboarding-note">
+            Langkah berikutnya: kamu mengatur batas pengeluaran harian. Staf AI tidak bisa membelanjakan uang sebelum itu.
+          </p>
+          <button id="onboarding-submit" type="submit" class="btn-primary">Buka kantor</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- First run, step 2: the owner sets the policy before any agent can spend (Requirement 1.3). -->
   <div id="policy-modal" class="modal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="policy-title" aria-describedby="policy-intro">
       <h2 id="policy-title" class="modal-title">Set your spending rules</h2>

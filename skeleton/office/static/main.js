@@ -3,7 +3,11 @@
 //   /                 live mode: GET /api/office, then SSE /api/events
 //   /?mock=1          offline demo: no backend call, a scripted loop drives 4 mock agents
 //   /?mock=1&policy=unset   same, but the policy is not set yet: the first-run policy dialog opens
+//   /?mock=1&onboarding=1   same, but from the very first screen: name and business type, then the policy dialog
 //   ?mock=1&agents=8        mock office with N agents (1 to 8, default 4), for performance checks
+//
+// First run on the live backend: GET /api/office answers { onboarding_required: true, business_types },
+// so the first-run screen (ui-onboarding.js) opens, then the policy dialog (Requirement 1.3), then the office.
 //   ?quality=low      low-quality mode (also saved from the HUD button)
 //   ?perf=1           performance probe: overlay plus window.__perf.snapshot() (perf.js)
 //
@@ -19,12 +23,14 @@ import { createOverlay } from "./ui-overlay.js";
 import { createPanel } from "./ui-panel.js";
 import { createHud } from "./ui-hud.js";
 import { createPolicyDialog } from "./ui-policy.js";
+import { createOnboarding, createOnboardingApi, createMockOnboardingApi } from "./ui-onboarding.js";
 import { createFeed } from "./ui-feed.js";
 import { startPerfProbe, createSlowFrameMonitor } from "./perf.js";
 
 const QUALITY_KEY = "kantor-agen.quality";
 const params = new URLSearchParams(location.search);
 const MOCK = params.get("mock") === "1";
+const MOCK_ONBOARDING = MOCK && params.get("onboarding") === "1";
 
 const API_EVENTS = "/api/events";
 const RECONNECT_BASE_MS = 500;
@@ -184,21 +190,35 @@ async function main() {
 
   // The backend (or, with ?mock=1, an in-memory stand-in with the same methods).
   let controller = null; // set below; the mock backend uses it to move the characters when the owner pauses
-  const api = MOCK
-    ? createMockApi(MOCK_OFFICE, {
-      policySet: params.get("policy") !== "unset",
-      applyVisualState: (e) => controller?.applyVisualState(e),
-    })
-    : createApi();
+  const makeMockApi = (officeData, policySet) => createMockApi(officeData, {
+    policySet,
+    applyVisualState: (e) => controller?.applyVisualState(e),
+  });
+  // With ?mock=1&onboarding=1 the mock office does not exist yet: it is created by the first-run screen.
+  let api = MOCK_ONBOARDING ? null : MOCK ? makeMockApi(MOCK_OFFICE, params.get("policy") !== "unset") : createApi();
 
   // Characters and the backend answer in parallel.
   let data;
   let assets;
+  let assetsLoaded = false;
   try {
-    [data, assets] = await Promise.all([
-      api.getOffice(),
-      loadAssets(null, (p) => office.setLoadingProgress(0.1 + 0.85 * p.fraction, p.label)),
-    ]);
+    const assetsPromise = loadAssets(null, (p) => office.setLoadingProgress(0.1 + 0.85 * p.fraction, p.label))
+      .then((loaded) => { assetsLoaded = true; return loaded; });
+    assetsPromise.catch(() => {}); // a failure is reported where the promise is awaited below
+    const first = MOCK_ONBOARDING ? createMockOnboardingApi() : null;
+    data = first ? first.firstOffice() : await api.getOffice();
+    if (data?.onboarding_required) {
+      // First run (Requirements 1.1, 1.2): show the form at once, the characters keep loading behind it.
+      office.hideLoading();
+      data = await createOnboarding({ api: first ?? createOnboardingApi() }).run(data);
+      if (MOCK_ONBOARDING) api = makeMockApi(data, false);
+      if (!assetsLoaded) { // still loading: show the bar again
+        const bar = document.getElementById("loading");
+        bar?.classList.remove("done");
+        bar?.removeAttribute("aria-hidden");
+      }
+    }
+    assets = await assetsPromise;
   } catch (err) {
     console.error(err);
     showFatal(`Could not load the office: ${err.message ?? err}`);

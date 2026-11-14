@@ -9,12 +9,16 @@ package name, so nothing inside it can be imported by tests or by other code.
 The choice made here:
 
 * ``apps/kantor_warung/`` (underscore) is the real package. ALL importable
-  Warung code lives here (data layer, roles, triggers, seed data), so it can
-  be unit tested with ``from apps.kantor_warung import data``.
+  Warung code lives here (``data.py``, ``roles.py``, ``template.py`` for the
+  onboarding, ``seed.py`` for the demo data, ``app.py`` for the wiring), so it
+  can be unit tested with ``from apps.kantor_warung import data``.
 * ``apps/kantor-warung/`` (hyphen) stays as the documented run entry folder.
   It only holds a tiny ``app.py`` that puts the repo root on ``sys.path`` and
-  imports from ``apps.kantor_warung``. Start it with
-  ``python apps/kantor-warung/app.py``.
+  calls ``apps.kantor_warung.app.main``. Start it with
+  ``.venv/bin/python apps/kantor-warung/app.py``.
+
+This ``__init__`` imports nothing, so importing one module of the package
+does not pull in the web server.
 
 Dependency direction: this package imports only from ``skeleton``. The
 skeleton never imports from ``apps`` (Req 9).

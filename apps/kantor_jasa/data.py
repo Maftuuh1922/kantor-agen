@@ -6,7 +6,8 @@ nothing was written.
 
 Bookings
     ``requested -> confirmed | cancelled``, ``confirmed -> cancelled | done``.
-    A booking can be confirmed only when no other *confirmed* booking on the
+    A ``requested`` booking can also be moved to another start time
+    (``reschedule_booking``). A booking can be confirmed only when no other *confirmed* booking on the
     same resource overlaps it. Intervals are half-open, ``[start, start +
     duration)``, so back-to-back bookings are fine. The check and the update run
     in one ``BEGIN IMMEDIATE`` transaction, so two writers cannot both confirm
@@ -325,6 +326,36 @@ def confirm_booking(conn: sqlite3.Connection, business_id: int, booking_id: int)
                 f"booking {booking_id} overlaps a confirmed booking on {row['resource']!r}"
             )
         _set_booking_status(conn, booking_id, ("requested",), "confirmed", row)
+
+
+def reschedule_booking(
+    conn: sqlite3.Connection,
+    business_id: int,
+    booking_id: int,
+    new_start: str | datetime,
+) -> None:
+    """Move a ``requested`` booking to a new start time. It stays ``requested``.
+
+    Used to re-request a booking at a proposed free slot. Like
+    :func:`request_booking` it does not check overlaps; only
+    :func:`confirm_booking` does. Raises :class:`BookingStateError` for any
+    status other than ``requested``, so a confirmed booking never moves.
+    """
+    _require_id("business_id", business_id)
+    _require_id("booking_id", booking_id)
+    start = _parse_moment("new_start", new_start)
+    with transaction(conn):
+        row = _booking_for_update(conn, business_id, booking_id)
+        if row["status"] != "requested":
+            raise BookingStateError(
+                f"booking {booking_id} is {row['status']!r}; only 'requested' can be rescheduled"
+            )
+        cur = conn.execute(
+            "UPDATE booking SET starts_at = ? WHERE id = ? AND status = 'requested'",
+            (_iso(start), booking_id),
+        )
+        if cur.rowcount != 1:  # defensive: the row was read in this transaction
+            raise BookingStateError(f"booking {booking_id} could not be rescheduled")
 
 
 def cancel_booking(conn: sqlite3.Connection, business_id: int, booking_id: int) -> None:

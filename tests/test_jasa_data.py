@@ -961,3 +961,23 @@ def test_jasa_error_hierarchy():
         InvoiceStateError,
     ):
         assert issubclass(cls, JasaError)
+
+# --------------------------------------------------------------- reschedule --
+def test_reschedule_moves_a_requested_booking_and_it_stays_requested(conn, clock, budi):
+    booking_id = book(conn, clock, budi, at(10))
+    data.reschedule_booking(conn, 1, booking_id, at(14))
+    row = data.get_booking(conn, 1, booking_id)
+    assert row["status"] == "requested"
+    assert datetime.fromisoformat(row["starts_at"]) == datetime.fromisoformat(at(14))
+def test_reschedule_refuses_other_statuses_and_unknown_or_foreign_bookings(conn, clock, budi, siti):
+    done = confirmed(conn, clock, budi, at(10))
+    with pytest.raises(BookingStateError):
+        data.reschedule_booking(conn, 1, done, at(14))  # a confirmed booking never moves
+    assert datetime.fromisoformat(data.get_booking(conn, 1, done)["starts_at"]) == datetime.fromisoformat(at(10))
+    with pytest.raises(UnknownBookingError):
+        data.reschedule_booking(conn, 1, 999, at(14))
+    other = book(conn, clock, siti, at(10), business=2)
+    with pytest.raises(UnknownBookingError):
+        data.reschedule_booking(conn, 1, other, at(14))
+    with pytest.raises(InvalidInput):
+        data.reschedule_booking(conn, 1, other, "tomorrow")

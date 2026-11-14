@@ -11,7 +11,7 @@ import pytest
 STATIC = Path(__file__).resolve().parent.parent / "skeleton" / "office" / "static"
 UI_MODULES = [
     "ui-format.js", "ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js",
-    "ui-hud.js", "ui-policy.js", "ui-feed.js",
+    "ui-hud.js", "ui-policy.js", "ui-feed.js", "ui-onboarding.js",
 ]
 JS_FILES = [*UI_MODULES, "main.js"]
 
@@ -52,7 +52,7 @@ def test_ui_code_never_writes_html_from_strings(rel):
         assert not re.search(banned, code), f"{rel} uses {banned}"
 
 
-@pytest.mark.parametrize("rel", ["ui-hud.js", "ui-panel.js", "ui-policy.js", "ui-feed.js", "ui-overlay.js"])
+@pytest.mark.parametrize("rel", ["ui-hud.js", "ui-panel.js", "ui-policy.js", "ui-feed.js", "ui-overlay.js", "ui-onboarding.js"])
 def test_server_text_goes_in_with_text_content(rel):
     code = read(rel)
     assert "textContent" in code or "createTextNode" in code, f"{rel} sets no text"
@@ -70,6 +70,10 @@ def test_index_has_the_ui_elements():
         # policy dialog
         "policy-modal", "policy-form", "policy-limit", "policy-limit-preview", "policy-limit-error",
         "policy-blocked", "policy-blocked-error", "policy-error", "policy-submit",
+        # first-run screen (task 10.5)
+        "onboarding", "onboarding-title", "onboarding-form", "onboarding-name", "onboarding-name-help",
+        "onboarding-name-error", "onboarding-types", "onboarding-type-error", "onboarding-preview-title",
+        "onboarding-preview-hint", "onboarding-preview-list", "onboarding-error", "onboarding-submit",
     ]
     for element_id in ids:
         assert re.search(rf'\bid="{re.escape(element_id)}"', html), f"index.html has no #{element_id}"
@@ -122,7 +126,8 @@ def test_ui_format_exports_the_tested_helpers():
 
 def test_main_wires_all_ui_modules():
     js = read("main.js")
-    for module in ("ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js", "ui-hud.js", "ui-policy.js", "ui-feed.js"):
+    for module in ("ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js", "ui-hud.js", "ui-policy.js", "ui-feed.js",
+                   "ui-onboarding.js"):
         assert f'"./{module}"' in js, f"main.js does not import {module}"
     assert "is_set" in js, "main.js must open the policy dialog when the policy is not set"
     assert "kantor:activity" in js
@@ -150,3 +155,66 @@ def test_overlay_click_has_no_press_duration_limit():
     code = strip_js_comments(read("ui-overlay.js"))
     assert "CLICK_MAX_MS" not in code
     assert "CLICK_MOVE_PX" in code and "controls?.dragged" in code
+
+
+# ---- first-run onboarding screen (task 10.5) ----------------------------------------------------
+def test_onboarding_screen_is_accessible():
+    html = read("index.html")
+    screen = html[html.index('id="onboarding"'):html.index('id="policy-modal"')]
+    assert re.search(r'<label[^>]+for="onboarding-name"', screen), "the name input needs a label"
+    assert "<legend" in screen, "the business types are a labelled group"
+    assert 'aria-labelledby="onboarding-title"' in screen and 'lang="id"' in screen
+    assert len(re.findall(r'role="alert"', screen)) >= 3, "validation errors are announced"
+    assert 'aria-describedby="onboarding-name-help onboarding-name-error"' in screen
+    assert '<form id="onboarding-form" novalidate>' in screen and 'type="submit"' in screen
+    assert 'aria-live="polite"' in screen, "the staff preview is announced when it changes"
+    js = read("ui-onboarding.js")
+    assert 'type = "radio"' in js and "htmlFor" in js, "business types are real radio inputs with labels (arrow keys work)"
+    assert "aria-invalid" in js and "inert" in js
+    assert "focus()" in js
+
+
+def test_onboarding_screen_comes_before_the_policy_dialog_in_the_page_and_above_it_in_css():
+    html = read("index.html")
+    assert html.index('id="onboarding"') < html.index('id="policy-modal"')
+    css = read("style.css")
+    z = lambda selector: int(re.search(rf"\n{re.escape(selector)}\s*\{{[^}}]*z-index:\s*(\d+)", css).group(1))
+    assert z(".onboarding") > z(".modal") and z(".onboarding") > z(".loading") and z(".onboarding") < z(".fatal")
+    for selector in (".onboarding-card", ".type-grid", ".type-card", ".staff-list", ".staff-item", ".onboarding-preview"):
+        assert selector in css, selector
+
+
+def test_onboarding_text_is_indonesian_and_writes_only_text():
+    js = strip_js_comments(read("ui-onboarding.js"))
+    for phrase in ("Nama usaha", "Pilih jenis usaha.", "Buka kantor", "Staf AI"):
+        assert phrase in js, phrase
+    # Server data (business types, staff names, error bodies) is only ever set as text.
+    assert "textContent" in js and "createTextNode" not in js
+    assert not re.search(r"\.(inner|outer)HTML", js) and "insertAdjacentHTML" not in js
+
+
+def test_onboarding_module_has_no_dom_work_at_import_time():
+    # tests/js/ui-onboarding.test.mjs imports it in Node, so the top level must not touch the DOM.
+    code = strip_js_comments(read("ui-onboarding.js"))
+    top_level = re.sub(r"(?m)^(export )?(async )?function [\s\S]*?\n}\n", "", code)  # drop function bodies
+    assert not re.search(r"(?m)^(const|let|var)\s+\w+\s*=\s*(document|window|localStorage)", top_level)
+    assert re.search(r"export function validateBusinessName\(", code)
+    assert "document." in code  # only inside createOnboarding
+
+
+def test_onboarding_talks_to_the_backend_endpoint_and_is_wired_into_main():
+    js = read("ui-onboarding.js")
+    assert '"/api/onboarding"' in js and '"POST"' in js and "JSON.stringify" in js
+    assert "onboarding_required" in read("main.js"), "main.js must open the first-run screen when the server asks"
+    main = read("main.js")
+    assert "createOnboarding(" in main and "createOnboardingApi" in main and "createMockOnboardingApi" in main
+    assert "onboarding=1" in main, "the ?mock=1&onboarding=1 preview is documented and wired"
+    # The first-run screen is followed by the policy dialog (Req 1.3): data.policy.is_set is still checked.
+    assert main.index("createOnboarding(") < main.index("needsPolicy")
+
+
+def test_onboarding_files_have_no_external_urls_and_no_unsafe_calls():
+    for rel in ("ui-onboarding.js", "index.html", "style.css", "main.js"):
+        text = read(rel)
+        assert not re.search(r"https?://", text), rel
+        assert not re.search(r"""\bsrc\s*=\s*["']?(https?:)?//""", text, re.I), rel
