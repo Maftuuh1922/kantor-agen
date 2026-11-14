@@ -60,16 +60,16 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Reject blocked action types, reject spending above the daily limit, and write the ledger row only on allow
     - Route `customer_message` tasks to the outbox with status `pending` and never call a send function
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
-  - [ ]* 3.2 Write property test for the daily spending limit
+  - [x]* 3.2 Write property test for the daily spending limit
     - **Property 3: Daily spend never exceeds the limit**
     - **Validates: Requirements 5.1**
-  - [ ]* 3.3 Write property test for blocked actions
+  - [x]* 3.3 Write property test for blocked actions
     - **Property 4: Blocked actions never execute**
     - **Validates: Requirements 5.3**
-  - [ ]* 3.4 Write property test for customer messages
+  - [-]* 3.4 Write property test for customer messages
     - **Property 5: Customer messages are never sent**
     - **Validates: Requirements 5.4**
-  - [ ]* 3.5 Write unit tests for the reject paths
+  - [-]* 3.5 Write unit tests for the reject paths
     - Cover limit reached, blocked type, invalid cost, and two concurrent spend requests
     - _Requirements: 5.1, 5.2, 5.3_
 
@@ -87,7 +87,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Use an OpenAI-compatible `/chat/completions` client with timeout and error handling
     - Provide a fake client for tests and demo mode
     - _Requirements: 4.3, 4.4, 10.2_
-  - [~] 5.3 Implement the Manager Agent
+  - [-] 5.3 Implement the Manager Agent
     - Assign handoffs and record them in the activity log
     - Pick the model by task kind, and fall back to the rule-only path when the model fails
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
