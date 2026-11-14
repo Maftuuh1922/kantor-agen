@@ -18,19 +18,66 @@
 <body>
   <canvas id="office-canvas" aria-label="3D office"></canvas>
 
+  <!-- Speech bubbles, status markers and name labels, one tag per agent (ui-overlay.js). -->
+  <div id="overlay" class="overlay" role="group" aria-label="Agents in the office"></div>
+
   <header id="hud" class="hud-top">
     <div class="hud-left">
       <span id="business-name" class="business-name">Kantor Agen</span>
+      <span id="spend-info" class="spend-info" title="Spent today / daily spending limit">
+        <span class="spend-label">Today</span>
+        <span id="spend-value" class="spend-value">-</span>
+      </span>
+      <span id="demo-badge" class="badge badge-demo" hidden title="Sample data, no real business">Demo mode</span>
     </div>
     <div class="hud-right">
-      <!-- Placeholder: wired to POST /api/office/pause in a later task. -->
-      <button id="pause-btn" type="button" class="hud-btn" disabled title="Pause all agents (coming soon)">Pause</button>
+      <span id="paused-badge" class="badge badge-paused" role="status" hidden>Paused</span>
+      <button id="pause-btn" type="button" class="hud-btn hud-btn-pause" disabled aria-label="Pause all agents">Pause</button>
       <button id="quality-btn" type="button" class="hud-btn" aria-pressed="false" title="Switch between normal and low quality">Quality: Normal</button>
     </div>
+    <p id="hud-message" class="hud-message" role="alert" hidden></p>
   </header>
 
-  <!-- Placeholder: the agent panel is filled by task 8.7. -->
   <aside id="side-panel" class="side-panel" hidden aria-label="Agent panel"></aside>
+
+  <aside id="activity-feed" class="activity-feed" aria-label="Latest activity">
+    <button id="feed-toggle" type="button" class="feed-toggle" aria-expanded="true" aria-controls="feed-list">
+      <span class="feed-title">Activity</span>
+      <span class="feed-count" aria-label="actions shown">0</span>
+      <span class="feed-chevron" aria-hidden="true"></span>
+    </button>
+    <ul id="feed-list" class="feed-list" aria-label="Last 5 actions, newest first"></ul>
+    <p id="feed-empty" class="feed-empty">No actions yet.</p>
+  </aside>
+
+  <!-- First run: the owner sets the policy before any agent can spend (Requirement 1.3). -->
+  <div id="policy-modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="policy-title" aria-describedby="policy-intro">
+      <h2 id="policy-title" class="modal-title">Set your spending rules</h2>
+      <p id="policy-intro" class="modal-intro">
+        Your agents cannot spend anything until you set these limits. You can change them later.
+      </p>
+      <form id="policy-form" novalidate>
+        <div class="field">
+          <label for="policy-limit" class="field-label">Daily spending limit (Rupiah)</label>
+          <input id="policy-limit" name="daily_limit_idr" type="text" inputmode="numeric" autocomplete="off"
+                 spellcheck="false" aria-describedby="policy-limit-preview policy-limit-error" placeholder="100000">
+          <p id="policy-limit-preview" class="field-preview" aria-live="polite"></p>
+          <p id="policy-limit-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <fieldset class="field" aria-describedby="policy-blocked-error">
+          <legend class="field-label">Blocked actions</legend>
+          <p class="field-help">Agents will never do the actions you tick.</p>
+          <div id="policy-blocked" class="check-list"></div>
+          <p id="policy-blocked-error" class="field-error" role="alert" hidden></p>
+        </fieldset>
+        <p id="policy-error" class="field-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button id="policy-submit" type="submit" class="btn-primary">Save and start</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="loading" class="loading" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Loading the office">
     <div class="loading-box">

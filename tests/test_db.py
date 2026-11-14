@@ -64,7 +64,13 @@ def test_foreign_keys_enforced(conn):
 
 def test_purchase_order_status_check(conn):
     _add_product(conn)
-    conn.execute("INSERT INTO purchase_order (product_id, qty, cost_idr, status) VALUES (1, 1, 100, 'placed')")
+    for status in ("placed", "pending", "received"):
+        conn.execute(
+            "INSERT INTO purchase_order (product_id, qty, cost_idr, status) VALUES (1, 1, 100, ?)",
+            (status,),
+        )
+    row = conn.execute("SELECT received_at FROM purchase_order WHERE status = 'received'").fetchone()
+    assert row["received_at"] is None  # nullable column
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO purchase_order (product_id, qty, cost_idr, status) VALUES (1, 1, 100, 'shipped')")
 

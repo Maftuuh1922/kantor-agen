@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS purchase_order (
     product_id  INTEGER NOT NULL REFERENCES product(id),
     qty         INTEGER NOT NULL CHECK (qty > 0),
     cost_idr    INTEGER NOT NULL CHECK (cost_idr >= 0),
-    status      TEXT    NOT NULL CHECK (status IN ('placed', 'pending'))
+    status      TEXT    NOT NULL CHECK (status IN ('placed', 'pending', 'received')),
+    received_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS activity (

@@ -102,7 +102,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Use a fake clock and fake LLM; cover model routing, LLM failure, and handoff order
     - _Requirements: 4.1, 4.2, 4.4_
 
-- [ ] 6. Checkpoint: skeleton backend
+- [x] 6. Checkpoint: skeleton backend
   - Run the full test suite and ask the owner if anything needs to change before the front end work
 
 - [x] 7. Visual state and office API
@@ -136,10 +136,10 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x]* 8.5 Write a unit test for the A* grid
     - No path may cross a blocked cell, and unreachable targets return no path
     - _Requirements: 2.4_
-  - [-] 8.6 Implement the behavior controller
+  - [x] 8.6 Implement the behavior controller
     - Map backend states to behaviors: working, handoff, waiting, idle, and paused, with idle behaviors that never use the typing animation
     - _Requirements: 2.5, 2.6, 2.7, 2.8_
-  - [ ] 8.7 Implement the agent panel, speech bubbles, and status markers
+  - [x] 8.7 Implement the agent panel, speech bubbles, and status markers
     - Show role, status, recent actions, spending today, and the latest action in a bubble
     - _Requirements: 2.6, 2.9_
   - [ ] 8.8 Measure and tune performance
@@ -150,7 +150,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office
 
 - [ ] 10. Kantor Warung application
-  - [ ] 10.1 Implement the data layer for products, sales, and purchase orders
+  - [x] 10.1 Implement the data layer for products, sales, and purchase orders
     - `record_sale` and `receive_purchase` update stock in the same transaction as the sale or purchase row
     - Reject a sale larger than the stock without applying it
     - _Requirements: 6.1, 6.2_

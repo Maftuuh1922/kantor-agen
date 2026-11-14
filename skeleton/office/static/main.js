@@ -2,6 +2,7 @@
 //
 //   /                 live mode: GET /api/office, then SSE /api/events
 //   /?mock=1          offline demo: no backend call, a scripted loop drives 4 mock agents
+//   /?mock=1&policy=unset   same, but the policy is not set yet: the first-run policy dialog opens
 //   ?quality=low      low-quality mode (also saved from the HUD button)
 //
 // The backend decides what each agent does (visual_state); this file only passes the
@@ -10,12 +11,18 @@
 import { createOffice } from "./office.js";
 import { loadAssets, createCharacter } from "./characters.js";
 import { BehaviorController } from "./behavior.js";
+import { createApi } from "./ui-api.js";
+import { createMockApi } from "./ui-mock.js";
+import { createOverlay } from "./ui-overlay.js";
+import { createPanel } from "./ui-panel.js";
+import { createHud } from "./ui-hud.js";
+import { createPolicyDialog } from "./ui-policy.js";
+import { createFeed } from "./ui-feed.js";
 
 const QUALITY_KEY = "kantor-agen.quality";
 const params = new URLSearchParams(location.search);
 const MOCK = params.get("mock") === "1";
 
-const API_OFFICE = "/api/office";
 const API_EVENTS = "/api/events";
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 5000;
@@ -83,12 +90,6 @@ function connectEvents({ onSnapshot, onVisualState, onActivity, onStatus }) {
   return { close() { closed = true; clearTimeout(timer); source?.close(); } };
 }
 
-async function fetchOffice() {
-  const res = await fetch(API_OFFICE, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`${API_OFFICE} answered ${res.status}`);
-  return res.json();
-}
-
 // ---- mock mode ------------------------------------------------------------------------------
 
 const MOCK_OFFICE = Object.freeze({
@@ -99,7 +100,7 @@ const MOCK_OFFICE = Object.freeze({
     { id: "mock-3", name: "Wati", role: "finance", desk_index: 2, paused: false },
     { id: "mock-4", name: "Joko", role: "marketing", desk_index: 3, paused: false },
   ],
-  policy: {},
+  policy: {},   // the mock backend (ui-mock.js) supplies the policy and the spending
   spent_today_idr: 0,
   demo_mode: true,
 });
@@ -119,7 +120,8 @@ const MOCK_SCRIPT = Object.freeze([
 ]);
 
 // Feeds MOCK_SCRIPT to the controller as visual_state events, driven by the frame clock.
-function createMockFeed(controller) {
+// `skip(agentId)` is true while the owner has paused that agent (or the office): the script then leaves it alone.
+function createMockFeed(controller, skip = () => false) {
   let time = 0;
   let next = 0;
   return {
@@ -129,7 +131,7 @@ function createMockFeed(controller) {
         const e = MOCK_SCRIPT[next];
         const at = e ? e.t : Infinity;
         if (at > time) break;
-        controller.applyVisualState({ agent_id: e.agent, state: e.state, target_agent_id: e.target ?? null, bubble_text: e.bubble ?? null });
+        if (!skip(e.agent)) controller.applyVisualState({ agent_id: e.agent, state: e.state, target_agent_id: e.target ?? null, bubble_text: e.bubble ?? null });
         next++;
         if (next >= MOCK_SCRIPT.length) {
           next = 0;
@@ -157,12 +159,21 @@ async function main() {
   }
   office.setLoadingProgress(0.1, "Loading characters");
 
+  // The backend (or, with ?mock=1, an in-memory stand-in with the same methods).
+  let controller = null; // set below; the mock backend uses it to move the characters when the owner pauses
+  const api = MOCK
+    ? createMockApi(MOCK_OFFICE, {
+      policySet: params.get("policy") !== "unset",
+      applyVisualState: (e) => controller?.applyVisualState(e),
+    })
+    : createApi();
+
   // Characters and the backend answer in parallel.
   let data;
   let assets;
   try {
     [data, assets] = await Promise.all([
-      MOCK ? Promise.resolve(MOCK_OFFICE) : fetchOffice(),
+      api.getOffice(),
       loadAssets(null, (p) => office.setLoadingProgress(0.1 + 0.85 * p.fraction, p.label)),
     ]);
   } catch (err) {
@@ -171,8 +182,9 @@ async function main() {
     throw err;
   }
 
-  const controller = new BehaviorController({ idleDelay: MOCK ? [5, 9] : undefined });
+  controller = new BehaviorController({ idleDelay: MOCK ? [5, 9] : undefined });
   const characters = new Map();
+  const agentInfo = new Map(); // agent id -> { name, role, paused }, from /api/office (used by the UI layer)
   const deskOf = new Map();    // agent id -> desk_index the character was created for
   const unusable = new Set();  // agents the backend lists without a usable desk: do not reload for them
 
@@ -207,11 +219,11 @@ async function main() {
 
   // Make the scene match /api/office: add new agents, move agents whose desk changed, drop removed ones.
   function applyOffice(office_data) {
-    const nameEl = document.getElementById("business-name");
-    if (nameEl && office_data.business?.name) nameEl.textContent = office_data.business.name;
     const seen = new Set();
+    agentInfo.clear();
     for (const agent of office_data.agents ?? []) {
       seen.add(String(agent.id));
+      agentInfo.set(String(agent.id), { name: agent.name, role: agent.role, paused: !!agent.paused });
       const added = addAgent(agent);
       // A new character knows nothing yet: show pause now, the snapshot corrects it.
       if (added && (agent.paused || office_data.business?.paused)) {
@@ -220,7 +232,46 @@ async function main() {
     }
     for (const id of [...characters.keys()]) if (!seen.has(id)) removeAgent(id);
   }
-  applyOffice(data);
+
+  // ---- UI layer: top bar, policy dialog, agent panel, bubbles, feed (ui-*.js) ----
+  const lookup = (id) => agentInfo.get(String(id));
+  const hud = createHud({
+    api,
+    onOffice: (d) => { applyOffice(d); panel.sync(); activityFeed.render(); },
+    onPauseChanged: () => panel.sync(),
+  });
+  const overlay = createOverlay({
+    container: document.getElementById("overlay"),
+    office,
+    controller,
+    characters,
+    agentInfo: lookup,
+    topBar: document.getElementById("hud"),
+    onSelect: (id) => { panel.open(id); overlay.setSelected(id); },
+  });
+  const panel = createPanel({
+    root: document.getElementById("side-panel"),
+    api,
+    controller,
+    agentInfo: lookup,
+    isOfficePaused: () => hud.isPaused(),
+    onClose: (id, restoreFocus) => {
+      overlay.setSelected(null);
+      if (restoreFocus) overlay.focusLabel(id);
+    },
+    onPauseChanged: () => hud.refresh(),
+  });
+  const activityFeed = createFeed({ root: document.getElementById("activity-feed"), api, agentInfo: lookup });
+  const policyDialog = createPolicyDialog({ api, onSaved: (policy) => hud.setPolicy(policy) });
+  window.addEventListener("kantor:activity", (e) => {
+    activityFeed.push(e.detail);
+    panel.handleActivity(e.detail);
+    hud.refreshSoon();
+  });
+
+  hud.apply(data);
+  activityFeed.load();
+  const needsPolicy = data.policy?.is_set === false; // Requirement 1.3: ask before anything can spend
 
   // A snapshot that names an agent we do not know means the office changed: reload /api/office once.
   let resyncing = false;
@@ -230,7 +281,7 @@ async function main() {
     if (MOCK || resyncing) return;
     resyncing = true;
     try {
-      applyOffice(await fetchOffice());
+      hud.apply(await api.getOffice());
       for (const e of pending) if (controller.has(e.agent_id)) controller.applyVisualState(e);
     } catch (err) {
       console.warn("could not reload the office", err);
@@ -267,7 +318,9 @@ async function main() {
     }
   }
 
-  const mockFeed = MOCK ? createMockFeed(controller) : null;
+  const mockFeed = MOCK
+    ? createMockFeed(controller, (id) => hud.isPaused() || !!lookup(id)?.paused)
+    : null;
   let feed = null;
   if (MOCK) {
     document.body.dataset.connection = "mock";
@@ -275,7 +328,7 @@ async function main() {
     feed = connectEvents({
       onSnapshot,
       onVisualState,
-      // Task 8.7 (agent panel) listens for this.
+      // The feed, the agent panel and the top bar listen for this.
       onActivity: (a) => window.dispatchEvent(new CustomEvent("kantor:activity", { detail: a })),
       onStatus: onConnection,
     });
@@ -284,10 +337,16 @@ async function main() {
   // Order matters: backend script, behavior controller (sets poses), then the characters' own animation.
   function step(dt) {
     mockFeed?.update(Math.min(dt, 0.1));
+    if (MOCK && api.tick) api.tick(Math.min(dt, 0.1));
     controller.update(dt);
     for (const c of characters.values()) c.update(dt);
   }
   office.onFrame(step);
+  // After the characters moved: put bubbles, markers and labels on their heads.
+  office.onFrame((dt) => {
+    overlay.update(dt);
+    panel.update(dt);
+  });
 
   function syncQualityButton() {
     const low = office.getQuality() === "low";
@@ -309,9 +368,15 @@ async function main() {
 
   window.office = office; // handy for the console and for later modules
   // `step` lets tests fast-forward the simulation without rendering.
-  window.kantor = { office, controller, characters, assets, data, feed, mock: MOCK, step };
+  window.kantor = {
+    office, controller, characters, assets, data, feed, mock: MOCK, step,
+    ui: { api, hud, overlay, panel, feed: activityFeed, policy: policyDialog },
+  };
   office.start();
-  office.ready.then(() => office.hideLoading());
+  office.ready.then(() => {
+    office.hideLoading();
+    if (needsPolicy) policyDialog.show();
+  });
 }
 
 main().catch((err) => console.error(err));
