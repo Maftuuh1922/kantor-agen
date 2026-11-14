@@ -225,7 +225,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Validate input at the API layer and reject invalid values without writing
     - _Requirements: 1.3, 1.4, 2.9, 8.1, 8.2_
 
-- [ ] 8. 3D office front end
+- [x] 8. 3D office front end
   - [x] 8.1 Build the Three.js scene
     - Vendor `three.module.js`, build the room with desks, pantry, meeting table, lights, and one shadow-casting directional light
     - Add the low-quality mode toggle
@@ -249,7 +249,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 8.7 Implement the agent panel, speech bubbles, and status markers
     - Show role, status, recent actions, spending today, and the latest action in a bubble
     - _Requirements: 2.6, 2.9_
-  - [-] 8.8 Measure and tune performance
+  - [x] 8.8 Measure and tune performance
     - Check load time and frame rate with 8 agents in normal and low-quality mode
     - _Requirements: 2.10_
   - [x] 8.9 Diversify character looks
@@ -270,7 +270,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [ ]* 10.3 Write property test for exact sale totals
     - **Property 2: Sale total is exact**
     - **Validates: Requirements 6.2**
-  - [ ] 10.4 Implement the cashier, stock, finance, and marketing roles
+  - [x] 10.4 Implement the cashier, stock, finance, and marketing roles
     - Stock agent orders when stock is under the minimum and within the limit, or records the order as pending
     - Marketing agent drafts a promo after sales fall for three days in a row
     - Finance agent prepares the daily summary
@@ -283,7 +283,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - _Requirements: 3.2, 10.1_
 
 - [ ] 11. Kantor Jasa application
-  - [ ] 11.1 Implement the data layer for bookings, invoices, and customers
+  - [x] 11.1 Implement the data layer for bookings, invoices, and customers
     - An invoice must not change after the owner or policy approves it
     - _Requirements: 5.1, 6.2_
   - [ ] 11.2 Implement the booking, billing, and follow-up roles
