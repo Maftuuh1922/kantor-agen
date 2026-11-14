@@ -14,6 +14,12 @@ the office. See ``apps/kantor-warung/README.md``.
 * The server binds to 127.0.0.1 unless ``--host`` says otherwise.
 * The heartbeat interval comes from ``KANTOR_HEARTBEAT_SECONDS`` (default 300), or
   ``--interval``. The heartbeat starts when the owner has saved the spending rules.
+* Work pacing ("think time", ``docs/pacing.md``) is ON when you start the app from the command
+  line, so the staff are visibly working: each task is held as "running" for a few seconds.
+  ``--no-pacing`` (or ``KANTOR_PACING=0``) turns it off; ``--pace-min`` / ``--pace-max`` (or
+  ``KANTOR_PACING_MIN`` / ``KANTOR_PACING_MAX``) set the range in seconds. The function
+  ``create_warung_runtime`` itself keeps pacing off unless its ``settings`` turn it on, so tests
+  stay instant.
 
 ``create_warung_runtime`` is the function the tests and ``main`` share.
 
@@ -38,6 +44,7 @@ from skeleton.office.visual import VisualTracker
 from skeleton.runtime.heartbeat import Heartbeat
 from skeleton.runtime.llm import build_llm_client
 from skeleton.runtime.manager import Manager
+from skeleton.runtime.pacing import settings_with_pacing
 
 DEFAULT_HOST = "127.0.0.1"  # never 0.0.0.0 unless the owner asks for it
 DEFAULT_PORT = 8000
@@ -138,11 +145,37 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="seconds between heartbeat ticks, at least 1 (default: KANTOR_HEARTBEAT_SECONDS, else 300)",
     )
     parser.add_argument(
+        "--no-pacing",
+        action="store_true",
+        help="turn off work pacing: tasks finish at once and staff are rarely seen working (see docs/pacing.md)",
+    )
+    parser.add_argument(
+        "--pace-min",
+        type=float,
+        default=None,
+        help="shortest think time in seconds (default: KANTOR_PACING_MIN, else 3)",
+    )
+    parser.add_argument(
+        "--pace-max",
+        type=float,
+        default=None,
+        help="longest think time in seconds, at most 60 (default: KANTOR_PACING_MAX, else 8)",
+    )
+    parser.add_argument(
         "--host",
         default=DEFAULT_HOST,
         help="address to listen on (default 127.0.0.1: this computer only)",
     )
     return parser.parse_args(argv)
+
+
+def _pacing_note(settings: Settings) -> str:
+    if not settings.pacing_enabled:
+        return "Work pacing: off (tasks finish at once)."
+    return (
+        f"Work pacing: on, {settings.pacing_min_seconds:g} to {settings.pacing_max_seconds:g} s of think time "
+        "per task (--no-pacing turns it off; see docs/pacing.md)."
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -152,7 +185,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.interval is not None and args.interval < MIN_INTERVAL_SECONDS:
         raise SystemExit("--interval must be at least 1 second")
     try:
-        runtime = create_warung_runtime(args.db, interval=args.interval)
+        # Pacing is on for the live app unless KANTOR_PACING or --no-pacing says otherwise.
+        settings = load_settings(pacing_default=True)
+        if args.no_pacing:
+            settings = settings_with_pacing(settings, enabled=False)
+        elif args.pace_min is not None or args.pace_max is not None:
+            settings = settings_with_pacing(
+                settings, enabled=settings.pacing_enabled, min=args.pace_min, max=args.pace_max
+            )
+        runtime = create_warung_runtime(args.db, settings=settings, interval=args.interval)
     except (ValueError, sqlite3.Error) as exc:
         raise SystemExit(f"Cannot start Kantor Warung: {exc}") from None
     import uvicorn  # imported here so tests can import this module without starting a server
@@ -163,6 +204,7 @@ def main(argv: list[str] | None = None) -> None:
             "and change its settings: there is no login.",
             flush=True,
         )
+    print(_pacing_note(settings), flush=True)
     print(f"Kantor Warung: http://{args.host}:{args.port}/  (Ctrl+C to stop)", flush=True)
     uvicorn.run(create_app(runtime), host=args.host, port=args.port, log_level="warning")
 

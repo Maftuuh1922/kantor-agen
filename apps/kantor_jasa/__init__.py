@@ -9,12 +9,16 @@ package name, so nothing inside it can be imported by tests or by other code.
 The choice made here:
 
 * ``apps/kantor_jasa/`` (underscore) is the real package. ALL importable
-  Jasa code lives here (schema, data layer, roles, triggers, seed data), so it
+  Jasa code lives here (schema, data layer, roles, triggers, ``template.py`` for
+  the onboarding, ``seed.py`` for the demo data, ``app.py`` for the wiring), so it
   can be unit tested with ``from apps.kantor_jasa import data``.
 * ``apps/kantor-jasa/`` (hyphen) stays as the documented run entry folder.
   It only holds a tiny ``app.py`` that puts the repo root on ``sys.path`` and
-  imports from ``apps.kantor_jasa``. Start it with
-  ``python apps/kantor-jasa/app.py``.
+  calls ``apps.kantor_jasa.app.main``. Start it with
+  ``.venv/bin/python apps/kantor-jasa/app.py --port 8001``.
+
+This ``__init__`` imports nothing, so importing one module of the package does
+not pull in the web server.
 
 Dependency direction: this package imports only from ``skeleton``. The
 skeleton never imports from ``apps`` (Req 9). The skeleton schema has no Jasa

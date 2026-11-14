@@ -324,6 +324,7 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
             "policy": policy_view(ctx),
             "spent_today_idr": spent_today(ctx.conn, ctx.business_id, ctx.clock),
             "demo_mode": bool(ctx.settings.public_dict()["demo_mode"]),
+            "pacing_enabled": bool(ctx.settings.pacing_enabled),
         }
 
     # -------------------------------------------------------------- #

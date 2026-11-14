@@ -107,7 +107,8 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
       "id": 11,
       "tasks": [
         "11.3",
-        "11.4"
+        "11.4",
+        "11.5"
       ]
     },
     {
@@ -259,7 +260,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
 - [x] 9. Checkpoint: skeleton demo
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office
 
-- [ ] 10. Kantor Warung application
+- [x] 10. Kantor Warung application
   - [x] 10.1 Implement the data layer for products, sales, and purchase orders
     - `record_sale` and `receive_purchase` update stock in the same transaction as the sale or purchase row
     - Reject a sale larger than the stock without applying it
@@ -282,19 +283,23 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
 
-- [ ] 11. Kantor Jasa application
+- [x] 11. Kantor Jasa application
   - [x] 11.1 Implement the data layer for bookings, invoices, and customers
     - An invoice must not change after the owner or policy approves it
     - _Requirements: 5.1, 6.2_
-  - [-] 11.2 Implement the booking, billing, and follow-up roles
+  - [x] 11.2 Implement the booking, billing, and follow-up roles
     - Booking agent confirms slots, billing agent drafts invoices, follow-up agent drafts reminders into the outbox
     - _Requirements: 1.2, 3.2, 5.4_
-  - [ ] 11.3 Add onboarding, seed data, and the app entry point
+  - [x] 11.3 Add onboarding, seed data, and the app entry point
     - Reuse the skeleton onboarding with Kantor Jasa roles and demo data
     - _Requirements: 1.1, 1.2, 9.2, 10.1, 10.3_
   - [ ]* 11.4 Write a smoke test
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
+  - [x] 11.5 Pace agent work so staff are visibly working
+    - Give each task a short working time while the backend reports it as running
+    - Pacing is on by default in the live apps, off in tests, and documented honestly
+    - _Requirements: 2.5, 2.8, 3.2_
 
 - [ ] 12. Checkpoint: both applications
   - Run the full test suite and run both applications end to end; ask the owner if anything needs to change

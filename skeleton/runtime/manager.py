@@ -22,7 +22,11 @@ Order of work inside ``handle``:
    model call.
 3. If the model call fails, the task is marked ``rule_only``, the failure is
    logged, and the role still runs without ``llm_text`` (Req 4.4).
-4. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
+4. Optional pacing: when ``settings.pacing_enabled`` is set (or a ``Pacer`` is passed in),
+   ``Pacer.wait`` holds the task for a few seconds before step 1, while the heartbeat
+   reports it as running. This is "think time" for the live apps, not compute: no extra
+   model call is made. Off by default, see ``pacing.py`` and ``docs/pacing.md``.
+5. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
    task writes an activity row. ``run`` may be a plain function or ``async def``;
    an awaitable result is awaited while the Manager lock is held.
 
@@ -47,6 +51,7 @@ from skeleton.log.activity import record
 from skeleton.policy.engine import OUTCOME_QUEUED, authorize
 from skeleton.runtime.llm import LLMClient, LLMError
 from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task, TaskKind
+from skeleton.runtime.pacing import Pacer
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,7 @@ class Manager:
         settings: Settings,
         roles: dict[int, Role],
         bus: EventBus | None = None,
+        pacer: Pacer | None = None,
     ) -> None:
         self._conn = conn
         self._business_id = business_id
@@ -86,6 +92,8 @@ class Manager:
         self._roles = roles
         self._bus = bus
         self._lock = asyncio.Lock()
+        # An explicit pacer wins (tests); otherwise settings decide. None means no pacing.
+        self._pacer = pacer if pacer is not None else Pacer.from_settings(settings)
         self._ctx = BusinessContext(
             conn=conn, business_id=business_id, clock=clock, bus=bus, settings=settings
         )
@@ -146,23 +154,26 @@ class Manager:
                     }
                 )
                 task.agent_id = to_agent_id
+                return await self._handle_locked(task, origin_agent_id=from_agent_id)
             return await self._handle_locked(task)
 
     # ------------------------------------------------------------------ #
     # Internals
     # ------------------------------------------------------------------ #
-    async def _handle_locked(self, task: Task) -> ActionResult:
+    async def _handle_locked(self, task: Task, origin_agent_id: int | None = None) -> ActionResult:
         try:
-            return await self._process(task)
+            return await self._process(task, origin_agent_id)
         except Exception as exc:  # the heartbeat must never see an exception
             return self._fail(task.agent_id, task.kind, self._describe(exc))
 
-    async def _process(self, task: Task) -> ActionResult:
+    async def _process(self, task: Task, origin_agent_id: int | None = None) -> ActionResult:
         role = self._roles.get(task.agent_id)
         if role is None:
             return self._fail(task.agent_id, task.kind, f"no role for agent {task.agent_id}")
         if not isinstance(task.payload, dict):
             return self._fail(task.agent_id, task.kind, "task payload must be a dict")
+
+        await self._pace(task, role, origin_agent_id)
 
         # A caller must not be able to preset model text.
         task.payload.pop(LLM_TEXT_KEY, None)
@@ -199,6 +210,16 @@ class Manager:
             return self._fail(task.agent_id, task.kind, "role returned an invalid result")
 
         return self._finish(task, result, queued_in_outbox)
+
+    async def _pace(self, task: Task, role: Role, origin_agent_id: int | None) -> None:
+        """Hold the task for its think time. A pacing problem never fails the task."""
+        if self._pacer is None:
+            return
+        watch = () if origin_agent_id is None else (origin_agent_id,)
+        try:
+            await self._pacer.wait(task, role, self._ctx, watch_agents=watch)
+        except Exception:
+            logger.exception("pacing failed; continuing without the wait")
 
     @staticmethod
     def _has_body(payload: dict) -> bool:

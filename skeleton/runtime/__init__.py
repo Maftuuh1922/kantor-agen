@@ -16,6 +16,7 @@ from skeleton.runtime.models import (
     Task,
     TaskKind,
 )
+from skeleton.runtime.pacing import Pacer, settings_with_pacing
 from skeleton.runtime.registry import RoleRegistry
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "LLMError",
     "Manager",
     "OpenAICompatibleClient",
+    "Pacer",
     "Role",
     "RoleRegistry",
     "Task",
@@ -35,4 +37,5 @@ __all__ = [
     "build_llm_client",
     "set_agent_paused",
     "set_business_paused",
+    "settings_with_pacing",
 ]

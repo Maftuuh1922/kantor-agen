@@ -14,8 +14,11 @@ One ``tick`` is one evaluation cycle:
 function reads it. Every start and finish also publishes an ``agent_state``
 event on the bus.
 
-``run_forever`` calls ``tick`` every ``settings.heartbeat_seconds`` and never
-dies from an exception inside a tick.
+``run_forever`` waits ``settings.heartbeat_seconds`` between ticks and never dies
+from an exception inside a tick. It awaits each tick before it sleeps, so ticks never
+overlap: with work pacing on (``pacing.py``) a tick lasts as long as the sum of its
+tasks' think times, and the next tick starts one interval after it ended. ``tick``
+also holds a lock, so a manual tick cannot overlap a running one either.
 
 This module must not import anything from ``apps/``.
 """
@@ -33,6 +36,7 @@ from skeleton.core.events import EventBus
 from skeleton.log.activity import record
 from skeleton.runtime.manager import Manager
 from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task
+from skeleton.runtime.pacing import HANDOFF_KEY  # defined in pacing.py; the demo imports it from here
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,6 @@ STATE_WORKING = "working"
 STATE_IDLE = "idle"
 STATE_WAITING = "waiting"
 TRIGGER_ACTION = "triggers"
-HANDOFF_KEY = "handoff_to"
 MAX_ERROR_CHARS = 300
 
 SleepFn = Callable[[float], Awaitable[None]]
@@ -134,7 +137,10 @@ class Heartbeat:
     # Background loop
     # ------------------------------------------------------------------ #
     async def run_forever(self) -> None:
-        """Tick every ``heartbeat_seconds``. Exceptions in a tick are logged, not raised."""
+        """Tick, sleep ``heartbeat_seconds``, repeat. A long tick delays the next one; never overlaps.
+
+        Exceptions in a tick are logged, not raised.
+        """
         while True:
             try:
                 await self.tick()
