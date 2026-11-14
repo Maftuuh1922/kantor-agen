@@ -32,16 +32,23 @@ Status: requirements draft v0.1, pending owner review.
 3. WHEN onboarding finishes, THE app SHALL require the owner to set the policy (daily spending limit and blocked actions) before any agent can spend money.
 4. THE app SHALL let the owner rename agents and change their roles later.
 
-### Requirement 2: 3D office view
+### Requirement 2: 3D office with lifelike staff
 
-**User Story:** As an owner, I want to see my AI staff in a 3D office, so I can understand what they are doing at a glance.
+**User Story:** As an owner, I want my AI staff to look and behave like real office workers, so the office feels alive and I can read what each agent is doing just by watching.
 
 #### Acceptance Criteria
 
-1. THE app SHALL render the office in Three.js with one desk per agent, using simple geometric models that load within 3 seconds on a typical laptop.
-2. WHEN an agent is working, THE app SHALL show the agent moving to its desk and display its latest action in a speech bubble.
-3. WHEN an agent is waiting for the owner, THE app SHALL show a visible status marker on that agent's desk.
-4. WHEN the owner clicks an agent, THE app SHALL open a panel with the agent's role, status, recent actions, and spending today.
+1. THE app SHALL render the office in Three.js with furnished desks, a pantry, a meeting table, soft shadows, and one human character per agent.
+2. THE app SHALL use rigged human characters with skeletal animation, and SHALL give each agent a distinct look (outfit, hair, or skin tone) so the owner can tell agents apart.
+3. WHEN an agent changes activity, THE app SHALL blend between animations (idle, walk, sit, type, talk, gesture) instead of switching instantly.
+4. WHEN an agent moves, THE app SHALL walk it along a path around furniture at a human walking speed (about 1.2 meters per second), turning to face the walking direction, and SHALL NOT pass through walls or furniture.
+5. WHEN an agent runs a task, THE app SHALL show it sitting at its desk and typing. WHEN an agent hands a task to another agent, THE app SHALL show it walking to that agent's desk and talking.
+6. WHEN an agent is waiting for the owner, THE app SHALL show it standing at its desk with a raised-hand gesture and a status marker.
+7. WHILE an agent has no task, THE app SHALL play idle behaviors (stretching, getting coffee at the pantry, chatting with an idle colleague), and SHALL label these as idle in the agent panel.
+8. THE app SHALL show an agent as working only while the backend reports a running task for that agent, so the scene never shows work that is not happening.
+9. WHEN the owner clicks an agent, THE app SHALL open a panel with the agent's role, status, recent actions, and spending today.
+10. THE app SHALL load the office within 5 seconds and run at 30 frames per second or more with up to 8 agents on a typical laptop, and SHALL offer a low-quality mode that turns off shadows and reduces character detail.
+11. THE repository SHALL include only 3D assets with a license that allows redistribution in an open source repository, and SHALL list each asset's source and license in `CREDITS.md`.
 
 ### Requirement 3: Autonomous operation
 

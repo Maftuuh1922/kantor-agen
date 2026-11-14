@@ -37,11 +37,13 @@ kantor-agen/
 │   ├── log/           activity log and daily summary
 │   └── office/        FastAPI app factory, SSE stream, static front end
 │       └── static/    index.html, office.js (Three.js scene), vendored three.module.js
+│           └── assets/ characters (glTF), animations (glTF), furniture (glTF)
 ├── apps/
 │   ├── kantor-warung/ roles, triggers, models, seed data, app.py entry point
 │   └── kantor-jasa/   roles, triggers, models, seed data, app.py entry point
 ├── tests/             property-based and unit tests (Hypothesis, pytest)
 ├── .kiro/             steering, specs, hooks
+├── CREDITS.md         source and license of every 3D asset
 └── README.md
 ```
 
@@ -104,8 +106,58 @@ The policy check reads and writes in the same transaction, so two concurrent spe
 ### Office Module
 
 - REST endpoints: `GET /api/office` (agents and desks), `GET /api/agents/{id}` (panel data), `POST /api/office/pause`, `POST /api/agents/{id}/pause`, `PUT /api/policy`.
-- SSE endpoint `GET /api/events` streams activity entries and status changes to the browser.
-- The Three.js scene places one desk per agent. A working agent moves to its desk with a linear interpolation. A speech bubble shows the latest action. A status ring is green when idle, blue when working, and amber when waiting for the owner (Req 2).
+- SSE endpoint `GET /api/events` streams activity entries and agent state changes to the browser.
+
+### Visual State (backend)
+
+The backend, not the browser, decides what each character should be doing. This keeps the scene truthful (Req 2.8).
+
+```python
+class VisualState(str, Enum):
+    WORKING = "working"        # task running: sit at desk, type
+    HANDOFF = "handoff"        # walk to target agent's desk, talk
+    WAITING = "waiting"        # stand at desk, raised hand, amber marker
+    IDLE = "idle"              # browser picks an idle behavior
+    PAUSED = "paused"          # stand still at desk, grey marker
+
+def visual_state(agent, running_task, pending_handoff) -> VisualState: ...
+```
+
+`visual_state` is a pure function of backend state. Every change is pushed over SSE as `{agent_id, state, target_agent_id, bubble_text}`.
+
+### Character Rendering (browser)
+
+- **Assets:** rigged human characters from Quaternius Universal Base Characters and clips from Quaternius Universal Animation Library. Both use one humanoid rig and are published under CC0 (source: https://quaternius.com/packs/universalanimationlibrary.html). Furniture from CC0 packs. Every asset is listed in `CREDITS.md` (Req 2.11).
+- **Distinct looks:** each agent gets a different base character and outfit color from a fixed palette, seeded by agent id, so looks stay the same across reloads (Req 2.2).
+- **Animation:** one `THREE.AnimationMixer` per character. State changes call `crossFadeTo` over 0.3 seconds (Req 2.3). Clip map: idle, walk, sit-down, sit-idle, type, talk, wave, stretch, drink.
+- **Typing fallback:** if the library has no typing clip, the sit-idle clip plays and the forearm bones get a small procedural oscillation.
+
+### Movement and Pathfinding (browser)
+
+- The floor is a 0.5 m grid. Desks, walls, and furniture mark cells as blocked.
+- A* finds the path between two cells. The path is smoothed by removing points that have a clear line of sight to each other.
+- Characters walk at 1.2 m/s and turn toward the next waypoint with a short rotation ease (Req 2.4).
+- Two characters do not reserve the same target cell. A character that arrives at an occupied cell waits for 1 second and picks the nearest free neighbor.
+
+### Behavior Controller (browser)
+
+A small state machine per character turns backend `VisualState` into motion:
+
+| Backend state | Behavior |
+|---|---|
+| `working` | walk to own desk if away, sit down, type |
+| `handoff` | walk to the target agent's desk, stand, talk for 3 to 5 seconds, walk back |
+| `waiting` | walk to own desk, stand, wave once, then idle with amber marker |
+| `idle` | every 20 to 60 seconds, pick one: stretch at desk, get a drink at the pantry, chat with another idle agent |
+| `paused` | stand still at own desk with a grey marker |
+
+A new backend state always interrupts an idle behavior. Idle behaviors never show the type animation, so idle is never mistaken for work (Req 2.7, 2.8).
+
+### Performance
+
+- Characters share geometry and animation clips. Only materials differ per agent.
+- Shadow map 1024 px from one directional light. Low-quality mode turns off shadows and uses lower-detail character meshes (Req 2.10).
+- Assets load in parallel with a progress bar. The scene starts after the furniture and the first character are ready, and other characters fade in as they load.
 
 ## Data Models
 
@@ -166,6 +218,12 @@ For any task of kind `customer_message`, the outcome is an outbox row with statu
 
 For any state where the business or the agent is paused, the heartbeat starts zero new tasks.
 
+### Property 7: Visual state matches real state
+
+**Validates: Requirements 2.8**
+
+For any combination of agent pause flag, running task, and pending handoff, `visual_state` returns `working` if and only if the agent has a running task and is not paused.
+
 ## Error Handling
 
 | Failure | Response |
@@ -185,7 +243,8 @@ For any state where the business or the agent is paused, the heartbeat starts ze
 
 ## Testing Strategy
 
-- **Property-based tests** (Hypothesis) for the six properties above, under `tests/properties/`. Each test runs at least 200 generated cases.
+- **Property-based tests** (Hypothesis) for the seven properties above, under `tests/properties/`. Each test runs at least 200 generated cases.
+- **Front-end checks:** a unit test for the A* grid (no path crosses a blocked cell) and a manual frame-rate check with 8 agents in normal and low-quality mode.
 - **Unit tests** (pytest) for the policy engine's reject paths, the Manager's model routing, and the office REST endpoints.
 - **Heartbeat tests** with a fake clock and a fake LLM client, so tests are deterministic and need no network.
 - **Smoke test** per application: start the server with seed data, run one heartbeat cycle, and check that at least one agent produced an activity row.
@@ -195,3 +254,4 @@ For any state where the business or the agent is paused, the heartbeat starts ze
 
 - Three.js is vendored into `skeleton/office/static/vendor/` so the demo runs offline. The alternative is a CDN import, which is simpler but needs internet.
 - SSE is used instead of WebSocket because the data flow is one-way (server to browser). This keeps the code smaller.
+- The free tier of the Quaternius packs may not include every clip in the clip map (for example typing). The typing fallback above covers this. The clip list will be confirmed after download.
