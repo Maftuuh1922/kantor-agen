@@ -12,6 +12,7 @@ policy engine.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -91,7 +92,9 @@ class Role(Protocol):
         """Rule-only check of the database. Must make no model call."""
         ...
 
-    def run(self, task: Task, ctx: BusinessContext) -> ActionResult: ...
+    def run(self, task: Task, ctx: BusinessContext) -> ActionResult | Awaitable[ActionResult]:
+        """Do the task. May be ``async def``: the Manager awaits an awaitable result."""
+        ...
 
 
 class BaseRole:

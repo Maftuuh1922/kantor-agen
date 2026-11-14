@@ -256,7 +256,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Mix male and female bodies, vary height, build, hair, and clothing so the staff do not all look like the same muscular man, and keep each agent's look the same on every reload
     - _Requirements: 2.2_
 
-- [ ] 9. Checkpoint: skeleton demo
+- [-] 9. Checkpoint: skeleton demo
   - Run the skeleton with a dummy role and confirm that an agent works, hands off, waits, and idles in the 3D office
 
 - [ ] 10. Kantor Warung application

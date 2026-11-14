@@ -23,7 +23,8 @@ Order of work inside ``handle``:
 3. If the model call fails, the task is marked ``rule_only``, the failure is
    logged, and the role still runs without ``llm_text`` (Req 4.4).
 4. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
-   task writes an activity row.
+   task writes an activity row. ``run`` may be a plain function or ``async def``;
+   an awaitable result is awaited while the Manager lock is held.
 
 For ``customer_message`` the outbox row is written by ``authorize`` from
 ``task.payload`` (``channel``, ``recipient``, ``body``). Nothing is ever sent.
@@ -33,6 +34,7 @@ This module must not import anything from ``apps/``.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import sqlite3
@@ -187,6 +189,10 @@ class Manager:
             await self._draft_text(task, model)
         try:
             result = role.run(task, self._ctx)
+            if inspect.isawaitable(result):
+                # An async role (``async def run``) may wait without blocking the event loop.
+                # The Manager lock is still held, so tasks stay strictly one at a time.
+                result = await result
         except Exception as exc:
             return self._fail(task.agent_id, task.kind, f"role failed: {self._describe(exc)}")
         if not isinstance(result, ActionResult):
