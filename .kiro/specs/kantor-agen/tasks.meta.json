@@ -1,0 +1,300 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create the Python project and folder layout": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645207281
+      },
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645222346
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645578884
+      }
+    ],
+    "1.2 Add Kiro steering files and a hook": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645207504
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645584257
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645715307
+      }
+    ],
+    "2.1 Implement config loading": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645207872
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645585071
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645715980
+      }
+    ],
+    "2.2 Implement the SQLite layer and schema": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645208311
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645585684
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645716258
+      }
+    ],
+    "2.3 Implement the event bus and clock": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645208515
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645586181
+      },
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645716544
+      }
+    ],
+    "3.1 Implement `authorize` with ledger insert in one transaction": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645208698
+      }
+    ],
+    "4.1 Implement the append-only activity log and daily summary": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645208867
+      }
+    ],
+    "5.1 Implement the Role protocol and Task model": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209093
+      }
+    ],
+    "5.2 Implement the LLM client": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209267
+      }
+    ],
+    "5.3 Implement the Manager Agent": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209444
+      }
+    ],
+    "5.4 Implement the heartbeat loop": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209625
+      }
+    ],
+    "6. Checkpoint: skeleton backend": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209796
+      }
+    ],
+    "7.1 Implement `visual_state` and the SSE stream": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645209962
+      }
+    ],
+    "7.3 Implement the office REST endpoints": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210122
+      }
+    ],
+    "8.1 Build the Three.js scene": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210296
+      }
+    ],
+    "8.2 Add CC0 assets and credits": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210449
+      }
+    ],
+    "8.3 Implement character loading and animation": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210636
+      }
+    ],
+    "8.4 Implement grid pathfinding and walking": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210828
+      }
+    ],
+    "8.6 Implement the behavior controller": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645210995
+      }
+    ],
+    "8.7 Implement the agent panel, speech bubbles, and status markers": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645211168
+      }
+    ],
+    "8.8 Measure and tune performance": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645211338
+      }
+    ],
+    "9. Checkpoint: skeleton demo": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645211495
+      }
+    ],
+    "10.1 Implement the data layer for products, sales, and purchase orders": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645211664
+      }
+    ],
+    "10.4 Implement the cashier, stock, finance, and marketing roles": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645211840
+      }
+    ],
+    "10.5 Add onboarding, seed data, and the app entry point": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212011
+      }
+    ],
+    "11.1 Implement the data layer for bookings, invoices, and customers": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212168
+      }
+    ],
+    "11.2 Implement the booking, billing, and follow-up roles": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212332
+      }
+    ],
+    "11.3 Add onboarding, seed data, and the app entry point": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212497
+      }
+    ],
+    "12. Checkpoint: both applications": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212660
+      }
+    ],
+    "13.1 Write the README": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212824
+      }
+    ],
+    "13.2 Write the Kiro usage write-up": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645212980
+      }
+    ],
+    "13.3 Check repository readiness for Devpost": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645213141
+      }
+    ],
+    "13.4 Record the demo video": [
+      {
+        "executionId": "e5a84841-9e17-414e-b0d3-de821ac3f5df",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645213321
+      }
+    ],
+    "1. Project setup and Kiro workspace": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645715706
+      }
+    ],
+    "2. Skeleton core": [
+      {
+        "executionId": "22cb6d1e-abb1-4963-afeb-f83144a064c2",
+        "chatSessionId": "sess_8b8a97e0-1d88-40d2-9764-d439aed72d3d",
+        "timestamp": 1794645716695
+      }
+    ]
+  }
+}
