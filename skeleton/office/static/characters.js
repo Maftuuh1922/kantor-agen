@@ -604,7 +604,8 @@ export function createCharacter(assets, agentId, options = {}) {
       mesh.material = mesh.material.clone(); // eyes: own copy, untinted
     }
     ownMaterials.push(mesh.material);
-    mesh.castShadow = options.castShadow !== false;
+    // Eyes and eyebrows are far too small to show a shadow, but each costs a draw call in the shadow pass.
+    mesh.castShadow = options.castShadow !== false && isBody;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false; // bounding spheres come from the bind pose
   }
@@ -657,6 +658,7 @@ export function createCharacter(assets, agentId, options = {}) {
     bones.Head.add(hijab);
   }
   const beardMesh = look.beard ? addHair(BEARD_ID, look.hair.color.hex) : null;
+  if (beardMesh) beardMesh.castShadow = false; // a thin shell on the face: no visible shadow, but a draw call
 
   // ---- animation ----
   const mixer = new THREE.AnimationMixer(model);

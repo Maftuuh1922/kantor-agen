@@ -194,13 +194,14 @@ export function startPerfProbe(office, { search = globalThis.location?.search, g
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
         materials.add(m);
         for (const v of Object.values(m)) {
-          if (v?.isTexture && !textures.has(v) && renderer.properties.get(v).__webglTexture) textures.set(v, true);
+          // Texture objects that share one image (same Source) share one GPU upload: count it once.
+          if (v?.isTexture && !textures.has(v.source ?? v) && renderer.properties.get(v).__webglTexture) textures.set(v.source ?? v, v);
         }
       }
     });
     const texList = [];
     let textureBytes = 0;
-    for (const t of textures.keys()) {
+    for (const t of textures.values()) {
       const img = t.image ?? t.source?.data;
       const w = img?.width ?? 0;
       const h = img?.height ?? 0;
@@ -212,7 +213,7 @@ export function startPerfProbe(office, { search = globalThis.location?.search, g
     let shadowBytes = 0;
     scene.traverse((o) => {
       const map = o.isLight && o.shadow?.map;
-      if (map) shadowBytes += map.width * map.height * 4 * 2; // depth plus color target, a rough upper bound
+      if (map) shadowBytes += map.width * map.height * 4; // one 32-bit depth value per texel
     });
     const size = { x: renderer.domElement.width, y: renderer.domElement.height }; // drawing buffer in device pixels
     return {
@@ -272,7 +273,7 @@ export function startPerfProbe(office, { search = globalThis.location?.search, g
   const box = document.createElement("pre");
   box.id = "perf-overlay";
   box.setAttribute("aria-hidden", "true");
-  box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:9999;margin:0;padding:6px 8px;"
+  box.style.cssText = "position:fixed;right:8px;bottom:8px;z-index:9999;margin:0;padding:6px 8px;"
     + "font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;color:#d8ffd8;background:rgba(0,0,0,.72);"
     + "border-radius:6px;pointer-events:none;white-space:pre";
   document.body.append(box);

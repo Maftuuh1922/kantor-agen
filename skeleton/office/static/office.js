@@ -729,6 +729,7 @@ export function createOffice(canvas, options = {}) {
 
   // -- loop --
   const frameCallbacks = new Set();
+  let frameList = []; // the same callbacks as an array, rebuilt only when one is added or removed
   let running = false;
   let firstFrame = false;
   let lastTime = 0;
@@ -743,7 +744,8 @@ export function createOffice(canvas, options = {}) {
     const dt = lastTime ? Math.min(0.1, (timeMs - lastTime) / 1000) : 0;
     lastTime = timeMs;
     elapsed += dt;
-    for (const cb of frameCallbacks) cb(dt, elapsed);
+    const list = frameList; // a callback may add or remove callbacks: this frame keeps its own list
+    for (let i = 0; i < list.length; i++) list[i](dt, elapsed);
     renderer.render(scene, camera);
     if (!firstFrame) {
       firstFrame = true;
@@ -789,7 +791,11 @@ export function createOffice(canvas, options = {}) {
   }
   function onFrame(cb) {
     frameCallbacks.add(cb);
-    return () => frameCallbacks.delete(cb);
+    frameList = [...frameCallbacks];
+    return () => {
+      frameCallbacks.delete(cb);
+      frameList = [...frameCallbacks];
+    };
   }
   function getStats() {
     const r = renderer.info.render;

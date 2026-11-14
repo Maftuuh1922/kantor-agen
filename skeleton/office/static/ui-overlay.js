@@ -71,6 +71,8 @@ export function createOverlay({ container, office, controller, characters, agent
       world: new THREE.Vector3(), placed: false,
       shown: false, bubbleShown: false,
       text: null, color: null, label: null, name: null, bubbleH: 0, rowH: 0,
+      seen: { ok: false, state: null, bubble: null, activity: null, name: null, role: null, text: "" }, // inputs of the last updateContent
+      sx: NaN, sy: NaN,
     };
   }
 
@@ -81,6 +83,10 @@ export function createOverlay({ container, office, controller, characters, agent
 
   function updateContent(tag, status, info) {
     const name = info?.name ?? tag.id;
+    // Same inputs as in the last frame: the strings below would be rebuilt every frame for nothing.
+    const seen = tag.seen;
+    if (status && seen.ok && seen.state === status.state && seen.bubble === status.bubble_text
+      && seen.activity === status.activity && seen.name === name && seen.role === info?.role) return seen.text;
     const color = status ? controller.markerFor(tag.id) ?? stateColor(status.state) : "grey";
     const text = bubbleText(status?.bubble_text);
     const detail = status ? stateDetail(status.state, status.activity) : "Unknown";
@@ -109,6 +115,15 @@ export function createOverlay({ container, office, controller, characters, agent
       else tag.bubble.removeAttribute("title");
       tag.bubbleH = 0;
     }
+    seen.ok = status != null;
+    if (status) {
+      seen.state = status.state;
+      seen.bubble = status.bubble_text;
+      seen.activity = status.activity;
+      seen.name = name;
+      seen.role = info?.role;
+      seen.text = text;
+    }
     return text;
   }
 
@@ -124,10 +139,16 @@ export function createOverlay({ container, office, controller, characters, agent
     }
   }
 
+  function sameKeys() {
+    for (const id of characters.keys()) if (!tags.has(id)) return false;
+    return true;
+  }
   function update(dt) {
     // Create tags for new characters, drop tags of removed ones.
-    for (const id of characters.keys()) if (!tags.has(id)) tags.set(id, createTag(id));
-    for (const tag of [...tags.values()]) if (!characters.has(tag.id)) removeTag(tag);
+    if (tags.size !== characters.size || !sameKeys()) {
+      for (const id of characters.keys()) if (!tags.has(id)) tags.set(id, createTag(id));
+      for (const tag of [...tags.values()]) if (!characters.has(tag.id)) removeTag(tag);
+    }
     if (!tags.size) return;
 
     const camera = office.camera;
@@ -151,7 +172,12 @@ export function createOverlay({ container, office, controller, characters, agent
       _v.copy(tag.world).project(camera);
       const sx = (_v.x * 0.5 + 0.5) * width;
       const sy = (-_v.y * 0.5 + 0.5) * height;
-      tag.root.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0)`;
+      // Write the style only when the label moved by a tenth of a pixel or more.
+      if (Math.abs(sx - tag.sx) >= 0.05 || Math.abs(sy - tag.sy) >= 0.05 || tag.sx !== tag.sx) {
+        tag.sx = sx;
+        tag.sy = sy;
+        tag.root.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0)`;
+      }
 
       // Measure sizes only when the content changed (reading layout every frame would be wasteful).
       if (!tag.rowH) tag.rowH = tag.inner.offsetHeight; // the bubble is absolutely positioned, so not counted

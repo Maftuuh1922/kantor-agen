@@ -249,7 +249,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 8.7 Implement the agent panel, speech bubbles, and status markers
     - Show role, status, recent actions, spending today, and the latest action in a bubble
     - _Requirements: 2.6, 2.9_
-  - [ ] 8.8 Measure and tune performance
+  - [-] 8.8 Measure and tune performance
     - Check load time and frame rate with 8 agents in normal and low-quality mode
     - _Requirements: 2.10_
   - [x] 8.9 Diversify character looks
