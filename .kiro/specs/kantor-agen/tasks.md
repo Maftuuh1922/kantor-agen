@@ -55,8 +55,8 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Add an in-process event bus used by the SSE stream
     - _Requirements: 3.1, 7.1_
 
-- [ ] 3. Policy engine and spend ledger
-  - [~] 3.1 Implement `authorize` with ledger insert in one transaction
+- [x] 3. Policy engine and spend ledger
+  - [x] 3.1 Implement `authorize` with ledger insert in one transaction
     - Reject blocked action types, reject spending above the daily limit, and write the ledger row only on allow
     - Route `customer_message` tasks to the outbox with status `pending` and never call a send function
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
@@ -73,17 +73,17 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Cover limit reached, blocked type, invalid cost, and two concurrent spend requests
     - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 4. Activity log
-  - [~] 4.1 Implement the append-only activity log and daily summary
+- [x] 4. Activity log
+  - [x] 4.1 Implement the append-only activity log and daily summary
     - Record agent, time, action, reason, cost, and status for every action
     - Build the daily summary of actions, spending, and pending items
     - _Requirements: 7.1, 7.2, 7.3_
 
 - [ ] 5. Agent runtime
-  - [~] 5.1 Implement the Role protocol and Task model
+  - [x] 5.1 Implement the Role protocol and Task model
     - Define `Task` and `Role` as in the design, with `triggers` as pure rule logic that makes no model call
     - _Requirements: 3.2, 3.3_
-  - [~] 5.2 Implement the LLM client
+  - [x] 5.2 Implement the LLM client
     - Use an OpenAI-compatible `/chat/completions` client with timeout and error handling
     - Provide a fake client for tests and demo mode
     - _Requirements: 4.3, 4.4, 10.2_
