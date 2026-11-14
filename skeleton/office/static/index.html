@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kantor Agen</title>
+  <link rel="stylesheet" href="./style.css">
+  <!-- Offline: "three" and its addons resolve to the vendored copies. No CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="office-canvas" aria-label="3D office"></canvas>
+
+  <header id="hud" class="hud-top">
+    <div class="hud-left">
+      <span id="business-name" class="business-name">Kantor Agen</span>
+    </div>
+    <div class="hud-right">
+      <!-- Placeholder: wired to POST /api/office/pause in a later task. -->
+      <button id="pause-btn" type="button" class="hud-btn" disabled title="Pause all agents (coming soon)">Pause</button>
+      <button id="quality-btn" type="button" class="hud-btn" aria-pressed="false" title="Switch between normal and low quality">Quality: Normal</button>
+    </div>
+  </header>
+
+  <!-- Placeholder: the agent panel is filled by task 8.7. -->
+  <aside id="side-panel" class="side-panel" hidden aria-label="Agent panel"></aside>
+
+  <div id="loading" class="loading" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Loading the office">
+    <div class="loading-box">
+      <div class="loading-title">Kantor Agen</div>
+      <div class="loading-track"><div class="loading-fill" data-fill></div></div>
+      <div class="loading-label" data-label>Loading the office</div>
+    </div>
+  </div>
+
+  <div id="fatal" class="fatal" hidden role="alert"></div>
+  <noscript><div class="fatal">This page needs JavaScript and WebGL.</div></noscript>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

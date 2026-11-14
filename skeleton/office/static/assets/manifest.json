@@ -1,0 +1,1185 @@
+{
+  "schema_version": 1,
+  "paths_relative_to": "skeleton/office/static/assets/",
+  "downloaded": "2026-11-14",
+  "license_summary": "All packs are CC0 1.0 (public domain dedication). See /CREDITS.md at the repo root.",
+  "rigs": {
+    "quaternius_humanoid_65": {
+      "joint_count": 65,
+      "armature_node": "Armature",
+      "root_bone": "root",
+      "naming": "UE5 mannequin style: lowercase snake_case with _l/_r suffix (pelvis, spine_01..03, neck_01, clavicle_l, upperarm_l, lowerarm_l, hand_l, thigh_l, calf_l, foot_l, ball_l, thumb_01_l ... pinky_04_leaf_l). 'Head' is the only capitalized bone. 'root' sits above 'pelvis'.",
+      "joints": [
+        "root",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "neck_01",
+        "Head",
+        "clavicle_l",
+        "upperarm_l",
+        "lowerarm_l",
+        "hand_l",
+        "index_01_l",
+        "index_02_l",
+        "index_03_l",
+        "index_04_leaf_l",
+        "middle_01_l",
+        "middle_02_l",
+        "middle_03_l",
+        "middle_04_leaf_l",
+        "pinky_01_l",
+        "pinky_02_l",
+        "pinky_03_l",
+        "pinky_04_leaf_l",
+        "ring_01_l",
+        "ring_02_l",
+        "ring_03_l",
+        "ring_04_leaf_l",
+        "thumb_01_l",
+        "thumb_02_l",
+        "thumb_03_l",
+        "thumb_04_leaf_l",
+        "clavicle_r",
+        "upperarm_r",
+        "lowerarm_r",
+        "hand_r",
+        "index_01_r",
+        "index_02_r",
+        "index_03_r",
+        "index_04_leaf_r",
+        "middle_01_r",
+        "middle_02_r",
+        "middle_03_r",
+        "middle_04_leaf_r",
+        "pinky_01_r",
+        "pinky_02_r",
+        "pinky_03_r",
+        "pinky_04_leaf_r",
+        "ring_01_r",
+        "ring_02_r",
+        "ring_03_r",
+        "ring_04_leaf_r",
+        "thumb_01_r",
+        "thumb_02_r",
+        "thumb_03_r",
+        "thumb_04_leaf_r",
+        "thigh_l",
+        "calf_l",
+        "foot_l",
+        "ball_l",
+        "ball_leaf_l",
+        "thigh_r",
+        "calf_r",
+        "foot_r",
+        "ball_r",
+        "ball_leaf_r"
+      ],
+      "same_rig_for_characters_and_animations": true,
+      "same_rig_check": "All 4 character glTFs, 6 hair glTFs and both animation GLBs have an identical joint-name set (65) and identical parent hierarchy, and every animation track targets a node name present in the character skeleton. AnimationClips from the GLBs bind to the character by node name, no retargeting needed. Proportions differ slightly (Superhero characters have a pelvis about 3 cm higher than the animation mannequin), so prefer rotation tracks and be careful with pelvis position tracks."
+    }
+  },
+  "characters": [
+    {
+      "id": "superhero_male_dark",
+      "file": "characters/universal-base-characters/Superhero_Male_FullBody.gltf",
+      "pack": "universal-base-characters",
+      "format": "gltf+bin",
+      "body": "male",
+      "proportions": "superhero",
+      "skin_texture": "textures/T_Superhero_Male_Dark.png",
+      "meshes": [
+        "Face",
+        "Face.001",
+        "Sphere.005_Retopology.004"
+      ],
+      "materials": [
+        "MI_Hair_1",
+        "MI_Eyes",
+        "MI_Superhero_Male"
+      ],
+      "skinned": true,
+      "rig": "quaternius_humanoid_65",
+      "skeleton_root_node": "Armature",
+      "bytes_gltf": 22470
+    },
+    {
+      "id": "superhero_male_light",
+      "file": "characters/universal-base-characters/Superhero_Male_FullBody_Light.gltf",
+      "pack": "universal-base-characters",
+      "format": "gltf+bin",
+      "body": "male",
+      "proportions": "superhero",
+      "skin_texture": "textures/T_Superhero_Male_Light.png",
+      "meshes": [
+        "Face",
+        "Face.001",
+        "Sphere.005_Retopology.004"
+      ],
+      "materials": [
+        "MI_Hair_1",
+        "MI_Eyes",
+        "MI_Superhero_Male"
+      ],
+      "skinned": true,
+      "rig": "quaternius_humanoid_65",
+      "skeleton_root_node": "Armature",
+      "bytes_gltf": 22471
+    },
+    {
+      "id": "superhero_female_dark",
+      "file": "characters/universal-base-characters/Superhero_Female_FullBody.gltf",
+      "pack": "universal-base-characters",
+      "format": "gltf+bin",
+      "body": "female",
+      "proportions": "superhero",
+      "skin_texture": "textures/T_Superhero_Female_Dark_BaseColor.png",
+      "meshes": [
+        "Eyebrows",
+        "Eyes",
+        "Superhero_Female"
+      ],
+      "materials": [
+        "MI_Hair_2",
+        "MI_Eyes",
+        "MI_Superhero_Female"
+      ],
+      "skinned": true,
+      "rig": "quaternius_humanoid_65",
+      "skeleton_root_node": "Armature",
+      "bytes_gltf": 23002
+    },
+    {
+      "id": "superhero_female_light",
+      "file": "characters/universal-base-characters/Superhero_Female_FullBody_Light.gltf",
+      "pack": "universal-base-characters",
+      "format": "gltf+bin",
+      "body": "female",
+      "proportions": "superhero",
+      "skin_texture": "textures/T_Superhero_Female_Light_BaseColor.png",
+      "meshes": [
+        "Eyebrows",
+        "Eyes",
+        "Superhero_Female"
+      ],
+      "materials": [
+        "MI_Hair_2",
+        "MI_Eyes",
+        "MI_Superhero_Female"
+      ],
+      "skinned": true,
+      "rig": "quaternius_humanoid_65",
+      "skeleton_root_node": "Armature",
+      "bytes_gltf": 23003
+    }
+  ],
+  "hair": [
+    {
+      "id": "hair_buns",
+      "file": "characters/universal-base-characters/hair/Hair_Buns.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "female",
+      "materials": [
+        "MI_Hair_2"
+      ]
+    },
+    {
+      "id": "hair_long",
+      "file": "characters/universal-base-characters/hair/Hair_Long.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "female",
+      "materials": [
+        "MI_Hair_2"
+      ]
+    },
+    {
+      "id": "hair_buzzedfemale",
+      "file": "characters/universal-base-characters/hair/Hair_BuzzedFemale.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "female",
+      "materials": [
+        "MI_Hair_1"
+      ]
+    },
+    {
+      "id": "hair_buzzed",
+      "file": "characters/universal-base-characters/hair/Hair_Buzzed.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "male",
+      "materials": [
+        "MI_Hair_1"
+      ]
+    },
+    {
+      "id": "hair_simpleparted",
+      "file": "characters/universal-base-characters/hair/Hair_SimpleParted.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "male",
+      "materials": [
+        "MI_Hair_1"
+      ]
+    },
+    {
+      "id": "hair_beard",
+      "file": "characters/universal-base-characters/hair/Hair_Beard.gltf",
+      "pack": "universal-base-characters",
+      "rig": "quaternius_humanoid_65",
+      "binding": "rigged to the Head bone, shares the 65-joint skeleton; bind its SkinnedMesh to the character skeleton",
+      "suggested_for": "male",
+      "materials": [
+        "MI_Hair_1"
+      ]
+    }
+  ],
+  "animations": [
+    {
+      "id": "ual1",
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "pack": "universal-animation-library",
+      "format": "glb",
+      "rig": "quaternius_humanoid_65",
+      "root_motion": false,
+      "clip_count": 43,
+      "clips": [
+        "A_TPose",
+        "Crouch_Fwd_Loop",
+        "Crouch_Idle_Loop",
+        "Dance_Loop",
+        "Death01",
+        "Driving_Loop",
+        "Fixing_Kneeling",
+        "Hit_Chest",
+        "Hit_Head",
+        "Idle_Loop",
+        "Idle_Talking_Loop",
+        "Idle_Torch_Loop",
+        "Interact",
+        "Jog_Fwd_Loop",
+        "Jump_Land",
+        "Jump_Loop",
+        "Jump_Start",
+        "PickUp_Table",
+        "Pistol_Aim_Down",
+        "Pistol_Aim_Neutral",
+        "Pistol_Aim_Up",
+        "Pistol_Idle_Loop",
+        "Pistol_Reload",
+        "Pistol_Shoot",
+        "Punch_Cross",
+        "Punch_Jab",
+        "Push_Loop",
+        "Roll",
+        "Sitting_Enter",
+        "Sitting_Exit",
+        "Sitting_Idle_Loop",
+        "Sitting_Talking_Loop",
+        "Spell_Simple_Enter",
+        "Spell_Simple_Exit",
+        "Spell_Simple_Idle_Loop",
+        "Spell_Simple_Shoot",
+        "Sprint_Loop",
+        "Swim_Fwd_Loop",
+        "Swim_Idle_Loop",
+        "Sword_Attack",
+        "Sword_Idle",
+        "Walk_Formal_Loop",
+        "Walk_Loop"
+      ],
+      "bytes": 7618436
+    },
+    {
+      "id": "ual2",
+      "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+      "pack": "universal-animation-library-2",
+      "format": "glb",
+      "rig": "quaternius_humanoid_65",
+      "root_motion": false,
+      "clip_count": 43,
+      "clips": [
+        "A_TPose",
+        "Chest_Open",
+        "ClimbUp_1m",
+        "Consume",
+        "Farm_Harvest",
+        "Farm_PlantSeed",
+        "Farm_Watering",
+        "Hit_Knockback",
+        "Idle_FoldArms_Loop",
+        "Idle_Lantern_Loop",
+        "Idle_No_Loop",
+        "Idle_Rail_Call",
+        "Idle_Rail_Loop",
+        "Idle_Shield_Break",
+        "Idle_Shield_Loop",
+        "Idle_TalkingPhone_Loop",
+        "LayToIdle",
+        "Melee_Hook",
+        "Melee_Hook_Rec",
+        "NinjaJump_Idle_Loop",
+        "NinjaJump_Land",
+        "NinjaJump_Start",
+        "OverhandThrow",
+        "Shield_Dash",
+        "Shield_OneShot",
+        "Slide_Exit",
+        "Slide_Loop",
+        "Slide_Start",
+        "Sword_Block",
+        "Sword_Dash",
+        "Sword_Heavy_Combo",
+        "Sword_Regular_A",
+        "Sword_Regular_A_Rec",
+        "Sword_Regular_B",
+        "Sword_Regular_B_Rec",
+        "Sword_Regular_C",
+        "Sword_Regular_Combo",
+        "TreeChopping_Loop",
+        "Walk_Carry_Loop",
+        "Yes",
+        "Zombie_Idle_Loop",
+        "Zombie_Scratch",
+        "Zombie_Walk_Fwd_Loop"
+      ],
+      "bytes": 8091444
+    }
+  ],
+  "furniture": [
+    {
+      "id": "bathroomCabinet",
+      "file": "furniture/kenney-furniture-kit/bathroomCabinet.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bathroomCabinetDrawer",
+      "file": "furniture/kenney-furniture-kit/bathroomCabinetDrawer.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bathroomMirror",
+      "file": "furniture/kenney-furniture-kit/bathroomMirror.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bathroomSink",
+      "file": "furniture/kenney-furniture-kit/bathroomSink.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bathroomSinkSquare",
+      "file": "furniture/kenney-furniture-kit/bathroomSinkSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bathtub",
+      "file": "furniture/kenney-furniture-kit/bathtub.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bear",
+      "file": "furniture/kenney-furniture-kit/bear.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bedBunk",
+      "file": "furniture/kenney-furniture-kit/bedBunk.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bedDouble",
+      "file": "furniture/kenney-furniture-kit/bedDouble.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bedSingle",
+      "file": "furniture/kenney-furniture-kit/bedSingle.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bench",
+      "file": "furniture/kenney-furniture-kit/bench.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "benchCushion",
+      "file": "furniture/kenney-furniture-kit/benchCushion.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "benchCushionLow",
+      "file": "furniture/kenney-furniture-kit/benchCushionLow.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bookcaseClosed",
+      "file": "furniture/kenney-furniture-kit/bookcaseClosed.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bookcaseClosedDoors",
+      "file": "furniture/kenney-furniture-kit/bookcaseClosedDoors.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bookcaseClosedWide",
+      "file": "furniture/kenney-furniture-kit/bookcaseClosedWide.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bookcaseOpen",
+      "file": "furniture/kenney-furniture-kit/bookcaseOpen.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "bookcaseOpenLow",
+      "file": "furniture/kenney-furniture-kit/bookcaseOpenLow.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "books",
+      "file": "furniture/kenney-furniture-kit/books.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cabinetBed",
+      "file": "furniture/kenney-furniture-kit/cabinetBed.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cabinetBedDrawer",
+      "file": "furniture/kenney-furniture-kit/cabinetBedDrawer.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cabinetBedDrawerTable",
+      "file": "furniture/kenney-furniture-kit/cabinetBedDrawerTable.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cabinetTelevision",
+      "file": "furniture/kenney-furniture-kit/cabinetTelevision.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cabinetTelevisionDoors",
+      "file": "furniture/kenney-furniture-kit/cabinetTelevisionDoors.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cardboardBoxClosed",
+      "file": "furniture/kenney-furniture-kit/cardboardBoxClosed.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "cardboardBoxOpen",
+      "file": "furniture/kenney-furniture-kit/cardboardBoxOpen.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "ceilingFan",
+      "file": "furniture/kenney-furniture-kit/ceilingFan.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chair",
+      "file": "furniture/kenney-furniture-kit/chair.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chairCushion",
+      "file": "furniture/kenney-furniture-kit/chairCushion.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chairDesk",
+      "file": "furniture/kenney-furniture-kit/chairDesk.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chairModernCushion",
+      "file": "furniture/kenney-furniture-kit/chairModernCushion.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chairModernFrameCushion",
+      "file": "furniture/kenney-furniture-kit/chairModernFrameCushion.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "chairRounded",
+      "file": "furniture/kenney-furniture-kit/chairRounded.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "coatRack",
+      "file": "furniture/kenney-furniture-kit/coatRack.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "coatRackStanding",
+      "file": "furniture/kenney-furniture-kit/coatRackStanding.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "computerKeyboard",
+      "file": "furniture/kenney-furniture-kit/computerKeyboard.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "computerMouse",
+      "file": "furniture/kenney-furniture-kit/computerMouse.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "computerScreen",
+      "file": "furniture/kenney-furniture-kit/computerScreen.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "desk",
+      "file": "furniture/kenney-furniture-kit/desk.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "deskCorner",
+      "file": "furniture/kenney-furniture-kit/deskCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "doorway",
+      "file": "furniture/kenney-furniture-kit/doorway.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "doorwayFront",
+      "file": "furniture/kenney-furniture-kit/doorwayFront.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "doorwayOpen",
+      "file": "furniture/kenney-furniture-kit/doorwayOpen.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "dryer",
+      "file": "furniture/kenney-furniture-kit/dryer.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "floorCorner",
+      "file": "furniture/kenney-furniture-kit/floorCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "floorCornerRound",
+      "file": "furniture/kenney-furniture-kit/floorCornerRound.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "floorFull",
+      "file": "furniture/kenney-furniture-kit/floorFull.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "floorHalf",
+      "file": "furniture/kenney-furniture-kit/floorHalf.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "hoodLarge",
+      "file": "furniture/kenney-furniture-kit/hoodLarge.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "hoodModern",
+      "file": "furniture/kenney-furniture-kit/hoodModern.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenBar",
+      "file": "furniture/kenney-furniture-kit/kitchenBar.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenBarEnd",
+      "file": "furniture/kenney-furniture-kit/kitchenBarEnd.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenBlender",
+      "file": "furniture/kenney-furniture-kit/kitchenBlender.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinet",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinet.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetCornerInner",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetCornerInner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetCornerRound",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetCornerRound.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetDrawer",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetDrawer.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetUpper",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetUpper.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetUpperCorner",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetUpperCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetUpperDouble",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetUpperDouble.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCabinetUpperLow",
+      "file": "furniture/kenney-furniture-kit/kitchenCabinetUpperLow.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenCoffeeMachine",
+      "file": "furniture/kenney-furniture-kit/kitchenCoffeeMachine.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenFridge",
+      "file": "furniture/kenney-furniture-kit/kitchenFridge.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenFridgeBuiltIn",
+      "file": "furniture/kenney-furniture-kit/kitchenFridgeBuiltIn.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenFridgeLarge",
+      "file": "furniture/kenney-furniture-kit/kitchenFridgeLarge.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenFridgeSmall",
+      "file": "furniture/kenney-furniture-kit/kitchenFridgeSmall.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenMicrowave",
+      "file": "furniture/kenney-furniture-kit/kitchenMicrowave.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenSink",
+      "file": "furniture/kenney-furniture-kit/kitchenSink.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenStove",
+      "file": "furniture/kenney-furniture-kit/kitchenStove.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "kitchenStoveElectric",
+      "file": "furniture/kenney-furniture-kit/kitchenStoveElectric.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampRoundFloor",
+      "file": "furniture/kenney-furniture-kit/lampRoundFloor.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampRoundTable",
+      "file": "furniture/kenney-furniture-kit/lampRoundTable.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampSquareCeiling",
+      "file": "furniture/kenney-furniture-kit/lampSquareCeiling.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampSquareFloor",
+      "file": "furniture/kenney-furniture-kit/lampSquareFloor.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampSquareTable",
+      "file": "furniture/kenney-furniture-kit/lampSquareTable.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "lampWall",
+      "file": "furniture/kenney-furniture-kit/lampWall.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "laptop",
+      "file": "furniture/kenney-furniture-kit/laptop.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeChair",
+      "file": "furniture/kenney-furniture-kit/loungeChair.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeChairRelax",
+      "file": "furniture/kenney-furniture-kit/loungeChairRelax.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeDesignChair",
+      "file": "furniture/kenney-furniture-kit/loungeDesignChair.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeDesignSofa",
+      "file": "furniture/kenney-furniture-kit/loungeDesignSofa.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeDesignSofaCorner",
+      "file": "furniture/kenney-furniture-kit/loungeDesignSofaCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeSofa",
+      "file": "furniture/kenney-furniture-kit/loungeSofa.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeSofaCorner",
+      "file": "furniture/kenney-furniture-kit/loungeSofaCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeSofaLong",
+      "file": "furniture/kenney-furniture-kit/loungeSofaLong.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "loungeSofaOttoman",
+      "file": "furniture/kenney-furniture-kit/loungeSofaOttoman.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "paneling",
+      "file": "furniture/kenney-furniture-kit/paneling.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "pillow",
+      "file": "furniture/kenney-furniture-kit/pillow.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "pillowBlue",
+      "file": "furniture/kenney-furniture-kit/pillowBlue.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "pillowBlueLong",
+      "file": "furniture/kenney-furniture-kit/pillowBlueLong.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "pillowLong",
+      "file": "furniture/kenney-furniture-kit/pillowLong.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "plantSmall1",
+      "file": "furniture/kenney-furniture-kit/plantSmall1.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "plantSmall2",
+      "file": "furniture/kenney-furniture-kit/plantSmall2.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "plantSmall3",
+      "file": "furniture/kenney-furniture-kit/plantSmall3.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "pottedPlant",
+      "file": "furniture/kenney-furniture-kit/pottedPlant.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "radio",
+      "file": "furniture/kenney-furniture-kit/radio.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "rugDoormat",
+      "file": "furniture/kenney-furniture-kit/rugDoormat.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "rugRectangle",
+      "file": "furniture/kenney-furniture-kit/rugRectangle.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "rugRound",
+      "file": "furniture/kenney-furniture-kit/rugRound.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "rugRounded",
+      "file": "furniture/kenney-furniture-kit/rugRounded.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "rugSquare",
+      "file": "furniture/kenney-furniture-kit/rugSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "shower",
+      "file": "furniture/kenney-furniture-kit/shower.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "showerRound",
+      "file": "furniture/kenney-furniture-kit/showerRound.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "sideTable",
+      "file": "furniture/kenney-furniture-kit/sideTable.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "sideTableDrawers",
+      "file": "furniture/kenney-furniture-kit/sideTableDrawers.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "speaker",
+      "file": "furniture/kenney-furniture-kit/speaker.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "speakerSmall",
+      "file": "furniture/kenney-furniture-kit/speakerSmall.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stairs",
+      "file": "furniture/kenney-furniture-kit/stairs.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stairsCorner",
+      "file": "furniture/kenney-furniture-kit/stairsCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stairsOpen",
+      "file": "furniture/kenney-furniture-kit/stairsOpen.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stairsOpenSingle",
+      "file": "furniture/kenney-furniture-kit/stairsOpenSingle.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stoolBar",
+      "file": "furniture/kenney-furniture-kit/stoolBar.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "stoolBarSquare",
+      "file": "furniture/kenney-furniture-kit/stoolBarSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "table",
+      "file": "furniture/kenney-furniture-kit/table.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCloth",
+      "file": "furniture/kenney-furniture-kit/tableCloth.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCoffee",
+      "file": "furniture/kenney-furniture-kit/tableCoffee.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCoffeeGlass",
+      "file": "furniture/kenney-furniture-kit/tableCoffeeGlass.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCoffeeGlassSquare",
+      "file": "furniture/kenney-furniture-kit/tableCoffeeGlassSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCoffeeSquare",
+      "file": "furniture/kenney-furniture-kit/tableCoffeeSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCross",
+      "file": "furniture/kenney-furniture-kit/tableCross.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableCrossCloth",
+      "file": "furniture/kenney-furniture-kit/tableCrossCloth.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableGlass",
+      "file": "furniture/kenney-furniture-kit/tableGlass.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "tableRound",
+      "file": "furniture/kenney-furniture-kit/tableRound.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "televisionAntenna",
+      "file": "furniture/kenney-furniture-kit/televisionAntenna.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "televisionModern",
+      "file": "furniture/kenney-furniture-kit/televisionModern.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "televisionVintage",
+      "file": "furniture/kenney-furniture-kit/televisionVintage.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "toaster",
+      "file": "furniture/kenney-furniture-kit/toaster.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "toilet",
+      "file": "furniture/kenney-furniture-kit/toilet.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "toiletSquare",
+      "file": "furniture/kenney-furniture-kit/toiletSquare.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "trashcan",
+      "file": "furniture/kenney-furniture-kit/trashcan.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wall",
+      "file": "furniture/kenney-furniture-kit/wall.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallCorner",
+      "file": "furniture/kenney-furniture-kit/wallCorner.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallCornerRond",
+      "file": "furniture/kenney-furniture-kit/wallCornerRond.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallDoorway",
+      "file": "furniture/kenney-furniture-kit/wallDoorway.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallDoorwayWide",
+      "file": "furniture/kenney-furniture-kit/wallDoorwayWide.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallHalf",
+      "file": "furniture/kenney-furniture-kit/wallHalf.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallWindow",
+      "file": "furniture/kenney-furniture-kit/wallWindow.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "wallWindowSlide",
+      "file": "furniture/kenney-furniture-kit/wallWindowSlide.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "washer",
+      "file": "furniture/kenney-furniture-kit/washer.glb",
+      "pack": "kenney-furniture-kit"
+    },
+    {
+      "id": "washerDryerStacked",
+      "file": "furniture/kenney-furniture-kit/washerDryerStacked.glb",
+      "pack": "kenney-furniture-kit"
+    }
+  ],
+  "furniture_roles": {
+    "desk": "furniture/kenney-furniture-kit/desk.glb",
+    "desk_corner": "furniture/kenney-furniture-kit/deskCorner.glb",
+    "desk_chair": "furniture/kenney-furniture-kit/chairDesk.glb",
+    "monitor": "furniture/kenney-furniture-kit/computerScreen.glb",
+    "keyboard": "furniture/kenney-furniture-kit/computerKeyboard.glb",
+    "mouse": "furniture/kenney-furniture-kit/computerMouse.glb",
+    "laptop": "furniture/kenney-furniture-kit/laptop.glb",
+    "meeting_table_round": "furniture/kenney-furniture-kit/tableRound.glb",
+    "meeting_table_rect": "furniture/kenney-furniture-kit/table.glb",
+    "meeting_chair": "furniture/kenney-furniture-kit/chair.glb",
+    "meeting_chair_cushion": "furniture/kenney-furniture-kit/chairModernCushion.glb",
+    "pantry_coffee_machine": "furniture/kenney-furniture-kit/kitchenCoffeeMachine.glb",
+    "pantry_fridge": "furniture/kenney-furniture-kit/kitchenFridge.glb",
+    "pantry_sink": "furniture/kenney-furniture-kit/kitchenSink.glb",
+    "pantry_cabinet": "furniture/kenney-furniture-kit/kitchenCabinet.glb",
+    "pantry_cabinet_upper": "furniture/kenney-furniture-kit/kitchenCabinetUpper.glb",
+    "pantry_counter_bar": "furniture/kenney-furniture-kit/kitchenBar.glb",
+    "pantry_microwave": "furniture/kenney-furniture-kit/kitchenMicrowave.glb",
+    "pantry_stool": "furniture/kenney-furniture-kit/stoolBar.glb",
+    "plant": "furniture/kenney-furniture-kit/pottedPlant.glb",
+    "bookcase": "furniture/kenney-furniture-kit/bookcaseClosed.glb",
+    "sofa": "furniture/kenney-furniture-kit/loungeSofa.glb",
+    "coffee_table": "furniture/kenney-furniture-kit/tableCoffee.glb",
+    "trashcan": "furniture/kenney-furniture-kit/trashcan.glb",
+    "rug": "furniture/kenney-furniture-kit/rugRectangle.glb",
+    "floor_lamp": "furniture/kenney-furniture-kit/lampRoundFloor.glb",
+    "coat_rack": "furniture/kenney-furniture-kit/coatRackStanding.glb",
+    "wall": "furniture/kenney-furniture-kit/wall.glb",
+    "wall_window": "furniture/kenney-furniture-kit/wallWindow.glb",
+    "wall_doorway": "furniture/kenney-furniture-kit/wallDoorway.glb",
+    "floor_tile": "furniture/kenney-furniture-kit/floorFull.glb"
+  },
+  "clip_map": {
+    "idle": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Idle_Loop"
+    },
+    "walk": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Walk_Loop"
+    },
+    "sit_down": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Sitting_Enter"
+    },
+    "sit_idle": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Sitting_Idle_Loop"
+    },
+    "type": null,
+    "talk": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Idle_Talking_Loop"
+    },
+    "wave": null,
+    "stretch": null,
+    "drink": null
+  },
+  "extra_clips": {
+    "sit_talk": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Sitting_Talking_Loop"
+    },
+    "walk_formal": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Walk_Formal_Loop"
+    },
+    "stand_up": {
+      "file": "animations/universal-animation-library/UAL1_Standard.glb",
+      "clip": "Sitting_Exit"
+    },
+    "idle_fold_arms": {
+      "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+      "clip": "Idle_FoldArms_Loop"
+    },
+    "idle_phone": {
+      "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+      "clip": "Idle_TalkingPhone_Loop"
+    },
+    "nod_or_gesture": {
+      "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+      "clip": "Yes"
+    }
+  },
+  "missing_behaviors": {
+    "type": "No typing clip in UAL1 Standard or UAL2 Standard. Use Sitting_Idle_Loop plus a procedural oscillation on upperarm_l/r, lowerarm_l/r and hand_l/r (design.md typing fallback).",
+    "wave": "No wave or raised-hand clip. Use a procedural raise of upperarm_r/lowerarm_r over Idle_Loop for the 'waiting for owner' gesture (Req 2.6).",
+    "stretch": "No stretch clip. Use a procedural arms-up pose (upperarm_l/r, spine_02/03) over Idle_Loop, or skip stretch and use idle_fold_arms.",
+    "drink": "No verified drinking clip. UAL2 'Consume' is a candidate, but its left hand ends about 0.5 m in front of the head, not at the mouth, so it was not mapped. Use procedural hand-to-mouth (upperarm_l/lowerarm_l) over Idle_Loop at the pantry, or review 'Consume' visually before mapping it."
+  },
+  "unverified_candidates": {
+    "wave": [
+      {
+        "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+        "clip": "Idle_Rail_Call"
+      }
+    ],
+    "drink": [
+      {
+        "file": "animations/universal-animation-library-2/UAL2_Standard.glb",
+        "clip": "Consume"
+      }
+    ],
+    "stretch": []
+  },
+  "playback_hints": {
+    "walk_natural_speed_mps": 0.97,
+    "walk_timescale_for_1_2_mps": 1.24,
+    "walk_note": "Walk_Loop moves 1.30 m per 1.33 s in the root-motion variant. The shipped files have root motion disabled, so the controller moves the character itself. Set action.timeScale about 1.24 for 1.2 m/s to avoid foot sliding.",
+    "sit_pelvis_height_m": 0.54,
+    "stand_pelvis_height_m": 0.88,
+    "sit_pelvis_back_offset_m": 0.24,
+    "sit_note": "In Sitting_Idle_Loop the pelvis is about 0.54 m above the floor and about 0.24 m behind its standing position (measured on the animation mannequin). Place the seat accordingly. Character height is about 1.55 m (Head bone) in clip space, units are meters.",
+    "facing": "Characters face +Z in glTF space.",
+    "loops": "Clips ending in _Loop are seamless loops. Sitting_Enter, Sitting_Exit and Interact are one-shots."
+  },
+  "modifications": [
+    "Textures were downscaled from 2048 to 1024 px to keep the repository small.",
+    "Body glTFs were rewritten so texture URIs point at textures/. Two missing references (T_Eye_Normal_png.png, T_Hair_1_Normal_png.png) were pointed at the existing T_Eye_Normal.png and T_Hair_1_Normal.png.",
+    "*_Light.gltf variants are copies of the Dark variants with the base color texture changed to the pack's Light skin texture.",
+    "Only the root-motion-disabled animation GLBs are shipped. Kenney models are unmodified."
+  ],
+  "limits": {
+    "free_tier_note": "Characters come from the free Standard tier of Universal Base Characters: 2 bodies (Superhero Male, Superhero Female), no Regular or Teen bodies. Variety comes from 2 skin textures, 6 hairstyles and material tinting. Animations come from the free Standard tiers (43 clips each)."
+  }
+}

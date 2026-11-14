@@ -5,6 +5,8 @@ from skeleton.runtime.llm import (
     OpenAICompatibleClient,
     build_llm_client,
 )
+from skeleton.runtime.controls import set_agent_paused, set_business_paused
+from skeleton.runtime.heartbeat import Heartbeat
 from skeleton.runtime.manager import Manager
 from skeleton.runtime.models import (
     ActionResult,
@@ -21,6 +23,7 @@ __all__ = [
     "BaseRole",
     "BusinessContext",
     "FakeLLMClient",
+    "Heartbeat",
     "LLMClient",
     "LLMError",
     "Manager",
@@ -30,4 +33,6 @@ __all__ = [
     "Task",
     "TaskKind",
     "build_llm_client",
+    "set_agent_paused",
+    "set_business_paused",
 ]

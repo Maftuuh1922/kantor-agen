@@ -66,10 +66,10 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x]* 3.3 Write property test for blocked actions
     - **Property 4: Blocked actions never execute**
     - **Validates: Requirements 5.3**
-  - [-]* 3.4 Write property test for customer messages
+  - [x]* 3.4 Write property test for customer messages
     - **Property 5: Customer messages are never sent**
     - **Validates: Requirements 5.4**
-  - [-]* 3.5 Write unit tests for the reject paths
+  - [x]* 3.5 Write unit tests for the reject paths
     - Cover limit reached, blocked type, invalid cost, and two concurrent spend requests
     - _Requirements: 5.1, 5.2, 5.3_
 
@@ -79,7 +79,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Build the daily summary of actions, spending, and pending items
     - _Requirements: 7.1, 7.2, 7.3_
 
-- [ ] 5. Agent runtime
+- [x] 5. Agent runtime
   - [x] 5.1 Implement the Role protocol and Task model
     - Define `Task` and `Role` as in the design, with `triggers` as pure rule logic that makes no model call
     - _Requirements: 3.2, 3.3_
@@ -87,11 +87,11 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Use an OpenAI-compatible `/chat/completions` client with timeout and error handling
     - Provide a fake client for tests and demo mode
     - _Requirements: 4.3, 4.4, 10.2_
-  - [-] 5.3 Implement the Manager Agent
+  - [x] 5.3 Implement the Manager Agent
     - Assign handoffs and record them in the activity log
     - Pick the model by task kind, and fall back to the rule-only path when the model fails
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
-  - [~] 5.4 Implement the heartbeat loop
+  - [x] 5.4 Implement the heartbeat loop
     - Evaluate each active agent's triggers on a schedule with one lock per business
     - Check pause flags before every step, and catch exceptions per agent so the loop continues
     - _Requirements: 3.1, 3.2, 3.4, 8.1, 8.3_
@@ -119,11 +119,11 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - _Requirements: 1.3, 1.4, 2.9, 8.1, 8.2_
 
 - [ ] 8. 3D office front end
-  - [~] 8.1 Build the Three.js scene
+  - [x] 8.1 Build the Three.js scene
     - Vendor `three.module.js`, build the room with desks, pantry, meeting table, lights, and one shadow-casting directional light
     - Add the low-quality mode toggle
     - _Requirements: 2.1, 2.10_
-  - [~] 8.2 Add CC0 assets and credits
+  - [x] 8.2 Add CC0 assets and credits
     - Download Quaternius characters, animation clips, and furniture, then list each source and license in `CREDITS.md`
     - Confirm which clips exist, and implement the typing fallback if there is no typing clip
     - _Requirements: 2.2, 2.11_
