@@ -26,6 +26,7 @@ import { createPolicyDialog } from "./ui-policy.js";
 import { createOnboarding, createOnboardingApi, createMockOnboardingApi } from "./ui-onboarding.js";
 import { createFeed } from "./ui-feed.js";
 import { startPerfProbe, createSlowFrameMonitor } from "./perf.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const QUALITY_KEY = "kantor-agen.quality";
 const params = new URLSearchParams(location.search);
@@ -101,11 +102,12 @@ function connectEvents({ onSnapshot, onVisualState, onActivity, onStatus }) {
 
 // ---- mock mode ------------------------------------------------------------------------------
 
+// The mock office speaks Indonesian like the live one: roles are the labels the owner sees (Kasir, Stok, ...).
 const MOCK_AGENT_ROWS = Object.freeze([
-  { name: "Sari", role: "cashier" }, { name: "Budi", role: "stock" },
-  { name: "Wati", role: "finance" }, { name: "Joko", role: "marketing" },
-  { name: "Rina", role: "cashier" }, { name: "Agus", role: "stock" },
-  { name: "Dewi", role: "finance" }, { name: "Hadi", role: "marketing" },
+  { name: "Sari", role: "Kasir" }, { name: "Budi", role: "Stok" },
+  { name: "Wati", role: "Keuangan" }, { name: "Joko", role: "Marketing" },
+  { name: "Rina", role: "Kasir" }, { name: "Agus", role: "Stok" },
+  { name: "Dewi", role: "Keuangan" }, { name: "Hadi", role: "Marketing" },
 ]);
 
 /** Number of mock agents from `?agents=N`: a whole number from 1 to 8, default 4. */
@@ -115,7 +117,7 @@ export function mockAgentCount(search) {
 }
 
 const MOCK_OFFICE = Object.freeze({
-  business: { id: 1, name: "Kantor Warung (demo)", type: "warung", paused: false },
+  business: { id: 1, name: "Kantor Warung (contoh)", type: "warung", paused: false },
   agents: MOCK_AGENT_ROWS.slice(0, mockAgentCount(location.search)).map((a, i) => (
     { id: `mock-${i + 1}`, name: a.name, role: a.role, desk_index: i, paused: false }
   )),
@@ -127,20 +129,20 @@ const MOCK_OFFICE = Object.freeze({
 // One scripted loop (seconds). Covers working, handoff, waiting, idle and paused.
 const MOCK_PERIOD = 60;
 const MOCK_SCRIPT = Object.freeze([
-  { t: 0, agent: "mock-1", state: "working", bubble: "Serving the counter" },
-  { t: 0, agent: "mock-2", state: "working", bubble: "Counting stock" },
+  { t: 0, agent: "mock-1", state: "working", bubble: "Mencatat penjualan" },
+  { t: 0, agent: "mock-2", state: "working", bubble: "Memeriksa stok" },
   { t: 0, agent: "mock-3", state: "idle" },
   { t: 0, agent: "mock-4", state: "paused" },
   // Agents 5 to 8 only exist with ?agents=5 and up.
-  { t: 0, agent: "mock-5", state: "working", bubble: "Serving the counter" },
-  { t: 0, agent: "mock-6", state: "working", bubble: "Counting stock" },
+  { t: 0, agent: "mock-5", state: "working", bubble: "Mencatat penjualan" },
+  { t: 0, agent: "mock-6", state: "working", bubble: "Memeriksa stok" },
   { t: 0, agent: "mock-7", state: "idle" },
-  { t: 0, agent: "mock-8", state: "working", bubble: "Drafting a promo" },
-  { t: 10, agent: "mock-2", state: "handoff", target: "mock-1", bubble: "Rice is low, please reorder" },
+  { t: 0, agent: "mock-8", state: "working", bubble: "Memikirkan ide promo" },
+  { t: 10, agent: "mock-2", state: "handoff", target: "mock-1", bubble: "Beras menipis, tolong pesan" },
   { t: 16, agent: "mock-6", state: "idle" },
-  { t: 24, agent: "mock-2", state: "working", bubble: "Counting stock" },
-  { t: 28, agent: "mock-3", state: "waiting", bubble: "Waiting for your approval" },
-  { t: 34, agent: "mock-7", state: "working", bubble: "Preparing the summary" },
+  { t: 24, agent: "mock-2", state: "working", bubble: "Memeriksa stok" },
+  { t: 28, agent: "mock-3", state: "waiting", bubble: "Menunggu OK: Gula Pasir" },
+  { t: 34, agent: "mock-7", state: "working", bubble: "Menyusun ringkasan harian" },
   { t: 42, agent: "mock-3", state: "idle" },
   { t: 42, agent: "mock-4", state: "idle" },
   { t: 50, agent: "mock-8", state: "idle" },
@@ -181,12 +183,12 @@ async function main() {
     office = createOffice(canvas, { quality: readQuality(), autoHideLoading: false });
   } catch (err) {
     console.error(err);
-    showFatal("Could not start the 3D office. This browser needs WebGL.");
+    showFatal(TEXT.fatal.noWebgl);
     throw err;
   }
   // ?perf=1 only: null otherwise, and then nothing below costs anything.
   const perf = startPerfProbe(office, { getExtra: () => ({ agents: window.kantor?.characters?.size ?? 0, mock: MOCK }) });
-  office.setLoadingProgress(0.1, "Loading characters");
+  office.setLoadingProgress(0.1, TEXT.loading.characters);
 
   // The backend (or, with ?mock=1, an in-memory stand-in with the same methods).
   let controller = null; // set below; the mock backend uses it to move the characters when the owner pauses
@@ -221,7 +223,7 @@ async function main() {
     assets = await assetsPromise;
   } catch (err) {
     console.error(err);
-    showFatal(`Could not load the office: ${err.message ?? err}`);
+    showFatal(fmt(TEXT.fatal.loadFailed, { error: err.message ?? err }));
     throw err;
   }
 
@@ -304,6 +306,15 @@ async function main() {
       if (restoreFocus) overlay.focusLabel(id);
     },
     onPauseChanged: () => hud.refresh(),
+    // After "Ubah nama": the label, the feed and the panel follow at once from the PATCH answer, then /api/office is
+    // reloaded so everything agrees with the server.
+    onRenamed: (agent) => {
+      const info = agentInfo.get(String(agent.id));
+      if (info) { info.name = agent.name; info.role = agent.role; }
+      panel.sync();
+      activityFeed.render();
+      hud.refresh();
+    },
   });
   const activityFeed = createFeed({ root: document.getElementById("activity-feed"), api, agentInfo: lookup });
   const policyDialog = createPolicyDialog({ api, onSaved: (policy) => hud.setPolicy(policy) });
@@ -399,7 +410,7 @@ async function main() {
 
   function syncQualityButton() {
     const low = office.getQuality() === "low";
-    qualityBtn.textContent = `Quality: ${low ? "Low" : "Normal"}`;
+    qualityBtn.textContent = fmt(TEXT.quality.button, { mode: low ? TEXT.quality.low : TEXT.quality.normal });
     qualityBtn.setAttribute("aria-pressed", String(low));
   }
   function applyQuality(next) {

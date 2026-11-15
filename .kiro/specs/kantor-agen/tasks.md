@@ -120,13 +120,25 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     {
       "id": 13,
       "tasks": [
-        "13.1",
-        "13.2",
-        "13.3"
+        "14.1",
+        "13.2"
       ]
     },
     {
       "id": 14,
+      "tasks": [
+        "14.2"
+      ]
+    },
+    {
+      "id": 15,
+      "tasks": [
+        "13.1",
+        "13.3"
+      ]
+    },
+    {
+      "id": 16,
       "tasks": [
         "13.4"
       ]
@@ -293,7 +305,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [x] 11.3 Add onboarding, seed data, and the app entry point
     - Reuse the skeleton onboarding with Kantor Jasa roles and demo data
     - _Requirements: 1.1, 1.2, 9.2, 10.1, 10.3_
-  - [-]* 11.4 Write a smoke test
+  - [x]* 11.4 Write a smoke test
     - Start with seed data, run one heartbeat, and check that at least one agent wrote an activity row
     - _Requirements: 3.2, 10.1_
   - [x] 11.5 Pace agent work so staff are visibly working
@@ -301,7 +313,7 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
     - Pacing is on by default in the live apps, off in tests, and documented honestly
     - _Requirements: 2.5, 2.8, 3.2_
 
-- [-] 12. Checkpoint: both applications
+- [x] 12. Checkpoint: both applications
   - Run the full test suite and run both applications end to end; ask the owner if anything needs to change
 
 - [ ] 13. Documentation and submission material
@@ -317,6 +329,17 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - [ ] 13.4 Record the demo video
     - Show the working app on the device it was built for, under three minutes, uploaded as public to YouTube
     - _Requirements: 10.1_
+
+- [ ] 14. Demo polish and owner approvals
+  - [ ] 14.1 Make the demo lively at any hour
+    - Simulators ignore business hours in demo mode
+    - Friendly action labels and short bubbles from roles
+    - Indonesian UI text, rename UI, and clearer rejection reasons
+    - _Requirements: 2.5, 3.2, 10.1_
+  - [ ] 14.2 Let the owner approve or reject waiting items
+    - Pending purchase orders and large draft invoices get approve and reject actions
+    - Approval goes through the policy engine and is logged
+    - _Requirements: 5.1, 5.2, 7.1, 8.2_
 
 ## Notes
 

@@ -51,6 +51,21 @@ of action ``customer_message`` are therefore part of this role's behavior and
 must not be removed. The booking and billing roles need no such rows: the
 booking and invoice tables carry their own state.
 
+Labels and bubbles
+------------------
+Each task carries a friendly Indonesian ``label`` (what the activity feed shows as the action, for
+example "Konfirmasi booking") and a short ``bubble`` text (30 to 45 characters, shown above the
+agent's head). The Manager stores the label as the activity ``action``, so the follow-up role looks
+for the label words (and the old ``customer_message`` kind word, for rows an older version wrote).
+
+Demo hours and arrival rate
+---------------------------
+``SimulatedBookingFeed(demo_hours=True)`` ignores the working hours, so requests arrive at night
+too (``--real-hours`` turns the hours back on). A request still asks for a start time inside the
+working hours. With a short heartbeat interval (``interval_seconds`` below 300 s) the arrival chance
+per poll rises, to about one request per 2 to 3 ticks at 8 to 30 s, and each poll is a new draw
+instead of one draw per 5-minute slot. While the calendar is nearly full the feed slows down.
+
 Depends only on ``skeleton.*`` and this app's own data layer; the skeleton never
 imports this module.
 """
@@ -68,6 +83,7 @@ from typing import Any, NamedTuple, Protocol, runtime_checkable
 from apps.kantor_jasa import data
 from apps.kantor_jasa.schema import MAX_DURATION_MIN
 from skeleton.core.clock import JAKARTA, Clock
+from skeleton.runtime.demo_mode import REAL_INTERVAL_SECONDS
 from skeleton.runtime.manager import DEFAULT_BODY_TEMPLATE, DEFAULT_SENDER_NAME
 from skeleton.runtime.models import ActionResult, BaseRole, BusinessContext, Role, Task, TaskKind
 from skeleton.runtime.registry import RoleRegistry
@@ -85,9 +101,23 @@ REMINDER_INTERVAL = timedelta(days=3)
 THANKS_MAX_AGE_DAYS = 2  # thank on the day after, or one day later if the cap held it back
 MESSAGE_CHANNEL = "whatsapp"
 BUBBLE_MAX_CHARS = 60
+BUBBLE_TEXT_CHARS = 45  # short bubble texts of the roles
 DEFAULT_RESOURCES = ("Kursi 1", "Kursi 2")
 
-ACTION_CUSTOMER_MESSAGE = TaskKind.CUSTOMER_MESSAGE  # the action the Manager logs for messages
+ACTION_CUSTOMER_MESSAGE = TaskKind.CUSTOMER_MESSAGE  # the kind word older versions logged for messages
+
+# Friendly action words for the activity feed (Task.label).
+LABEL_REGISTER = "Catat permintaan"
+LABEL_CONFIRM = "Konfirmasi booking"
+LABEL_COMPLETE = "Selesaikan booking"
+LABEL_INVOICE = "Buat invoice"
+LABEL_APPROVE = "Setujui invoice"
+LABEL_PAYMENT = "Catat pembayaran"
+LABEL_REMINDER = "Kirim pengingat"
+LABEL_THANKS = "Kirim terima kasih"
+# Every word a follow-up message row can carry in ``activity.action``.
+MESSAGE_ACTIONS = (LABEL_REMINDER, LABEL_THANKS, ACTION_CUSTOMER_MESSAGE)
+_MESSAGE_MARKS = ",".join("?" for _ in MESSAGE_ACTIONS)
 
 # Payload "action" values, used to route a task to its handler in ``run``.
 ACT_REGISTER = "register"
@@ -133,6 +163,15 @@ def rupiah(amount: int) -> str:
 
 def _short(text: str, limit: int = BUBBLE_MAX_CHARS) -> str:
     return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+
+
+def _bubble(text: str) -> str:
+    """A short speech-bubble text (at most ``BUBBLE_TEXT_CHARS`` characters)."""
+    return _short(text, BUBBLE_TEXT_CHARS)
+
+
+def _first_name(name: str) -> str:
+    return name.split()[0] if name.split() else name
 
 
 def _is_int(value: Any) -> bool:
@@ -255,10 +294,18 @@ class SimulatedBookingFeed:
     conflict path gets exercised. Polling reads the database and writes nothing.
     A request is handed out once: polling the same 5-minute slot again returns
     nothing, while a new feed with the same seed repeats the same requests.
+
+    ``demo_hours=True`` ignores the working hours for WHEN a request arrives (the requested start
+    time still lies inside the working hours). ``interval_seconds`` is the heartbeat interval; below
+    300 s the feed makes a new draw on every poll with the chance ``fast_chance`` (see
+    ``FAST_CHANCE``), and it holds back while ``CALENDAR_CAP`` or more bookings are waiting or
+    upcoming, so the calendar does not fill up in minutes.
     """
 
     SLOT_MINUTES = 5
     LEAD = timedelta(hours=1)
+    FAST_CHANCE = 0.4  # about one request per 2 to 3 ticks at an interval of 8 to 30 s
+    CALENDAR_CAP = 30  # requested + confirmed bookings from now on; at this many the feed rests
 
     def __init__(
         self,
@@ -269,10 +316,14 @@ class SimulatedBookingFeed:
         hours: tuple[int, int] = data.DEFAULT_HOURS,
         chance: float = 0.15,
         overlap_chance: float = 0.3,
+        demo_hours: bool = False,
+        interval_seconds: float | None = None,
     ) -> None:
         if not catalogue or not resources:
             raise ValueError("catalogue and resources must not be empty")
         self.seed = seed
+        self.demo_hours = demo_hours
+        self.interval_seconds = interval_seconds
         self.catalogue = tuple(catalogue)
         self.resources = tuple(resources)
         self.hours = hours
@@ -283,17 +334,50 @@ class SimulatedBookingFeed:
         # 5 minutes, and a booking that was moved to another slot or cancelled
         # must not be registered again by the next poll of the same slot.
         self._served_key: str | None = None
+        # Short interval: which slot was polled last and how many times (like the Warung sales feed).
+        self._slot: str | None = None
+        self._polls_in_slot = 0
+
+    @property
+    def fast(self) -> bool:
+        """True with a heartbeat interval below 300 s: one draw per poll, not one per 5-minute slot."""
+        return self.interval_seconds is not None and 0 < self.interval_seconds < REAL_INTERVAL_SECONDS
+
+    @property
+    def effective_chance(self) -> float:
+        """Chance of a request per draw. Rises as the interval gets shorter, at most ``FAST_CHANCE``."""
+        if not self.fast:
+            return self.chance
+        scaled = self.chance * REAL_INTERVAL_SECONDS / self.interval_seconds  # type: ignore[operator]
+        return max(self.chance, min(self.FAST_CHANCE, scaled))
+
+    def _calendar_full(self, ctx: BusinessContext) -> bool:
+        now = _iso(ctx.clock.now())
+        row = ctx.conn.execute(
+            "SELECT COUNT(*) FROM booking WHERE business_id = ? AND status IN ('requested', 'confirmed') "
+            "AND starts_at >= ?",
+            (ctx.business_id, now),
+        ).fetchone()
+        return int(row[0]) >= self.CALENDAR_CAP
 
     def poll(self, ctx: BusinessContext) -> list[dict]:
         now = _local(ctx.clock.now())
         open_hour, close_hour = self.hours
-        if not open_hour <= now.hour < close_hour:
+        if not self.demo_hours and not open_hour <= now.hour < close_hour:
             return []
-        key = f"{self.seed}|booking|{now.date().isoformat()}|{now.hour}|{now.minute // self.SLOT_MINUTES}"
+        slot = f"{self.seed}|booking|{now.date().isoformat()}|{now.hour}|{now.minute // self.SLOT_MINUTES}"
+        key = slot
+        if self.fast:
+            self._polls_in_slot = self._polls_in_slot + 1 if slot == self._slot else 0
+            self._slot = slot
+            if self._polls_in_slot:
+                key = f"{slot}|{self._polls_in_slot}"
+            if self._calendar_full(ctx):
+                return []
         if key == self._served_key:
             return []
         rng = random.Random(key)
-        if rng.random() >= self.chance:
+        if rng.random() >= self.effective_chance:
             return []
         name = rng.choice(CUSTOMER_NAMES)
         channel = rng.choice(("walk-in", "whatsapp"))
@@ -482,6 +566,8 @@ class BookingRole(_JasaRole):
                     payload={"action": ACT_REGISTER, **request},
                     cost_idr=0,
                     reason=f"Catat permintaan: {request['customer_name']}, {request['service']} {when}",
+                    label=LABEL_REGISTER,
+                    bubble=_bubble(f"Catat permintaan {_first_name(request['customer_name'])}"),
                 )
             )
         return tasks
@@ -498,6 +584,8 @@ class BookingRole(_JasaRole):
                     payload={"action": ACT_CONFIRM, "booking_id": booking["id"]},
                     cost_idr=0,
                     reason=f"Konfirmasi booking #{booking['id']}: {who}, {booking['service']} {when}",
+                    label=LABEL_CONFIRM,
+                    bubble=_bubble(f"Konfirmasi booking #{booking['id']} {_first_name(who)}"),
                 )
             )
         return tasks
@@ -516,6 +604,8 @@ class BookingRole(_JasaRole):
                     payload={"action": ACT_COMPLETE, "booking_id": booking["id"]},
                     cost_idr=0,
                     reason=f"Selesaikan booking #{booking['id']}: {who}, {booking['service']}",
+                    label=LABEL_COMPLETE,
+                    bubble=_bubble(f"Menyelesaikan booking #{booking['id']}"),
                 )
             )
         return tasks
@@ -727,6 +817,8 @@ class BillingRole(_JasaRole):
                         f"Buat invoice booking #{booking_id}: "
                         f"{_customer_name(ctx, customer_id)}, {service} {rupiah(amount)}"
                     ),
+                    label=LABEL_INVOICE,
+                    bubble=_bubble(f"Membuat invoice booking #{booking_id}"),
                 )
             )
         return tasks
@@ -748,6 +840,8 @@ class BillingRole(_JasaRole):
                     },
                     cost_idr=0,
                     reason=f"Setujui invoice #{invoice['id']} {rupiah(invoice['amount_idr'])} (di bawah limit)",
+                    label=LABEL_APPROVE,
+                    bubble=_bubble(f"Menyetujui invoice #{invoice['id']}"),
                 )
             )
         return tasks
@@ -774,6 +868,8 @@ class BillingRole(_JasaRole):
                         f"Catat pembayaran invoice #{invoice_id}: "
                         f"{_customer_name(ctx, invoice['customer_id'])} {rupiah(invoice['amount_idr'])}"
                     ),
+                    label=LABEL_PAYMENT,
+                    bubble=_bubble(f"Mencatat pembayaran #{invoice_id}"),
                 )
             )
         return tasks
@@ -829,6 +925,7 @@ class BillingRole(_JasaRole):
                 status="pending",
                 message=_short(f"Invoice #{invoice_id} {rupiah(amount)} menunggu pemilik"),
                 data={"invoice_id": invoice_id, "amount_idr": amount, "limit_idr": limit},
+                bubble=_bubble(f"Invoice #{invoice_id} menunggu OK pemilik"),
             )
         try:
             data.approve_invoice(ctx.conn, ctx.business_id, invoice_id, "policy", ctx.clock)
@@ -885,9 +982,9 @@ class FollowUpRole(_JasaRole):
         """Message tasks of this agent today, also rejected ones (a blocked policy must not loop)."""
         start, end = _day_bounds(ctx.clock.today())
         row = ctx.conn.execute(
-            "SELECT COUNT(*) FROM activity WHERE business_id = ? AND agent_id = ? AND action = ? "
-            "AND created_at >= ? AND created_at < ?",
-            (ctx.business_id, me, ACTION_CUSTOMER_MESSAGE, start, end),
+            "SELECT COUNT(*) FROM activity WHERE business_id = ? AND agent_id = ? "
+            f"AND action IN ({_MESSAGE_MARKS}) AND created_at >= ? AND created_at < ?",
+            (ctx.business_id, me, *MESSAGE_ACTIONS, start, end),
         ).fetchone()
         return int(row[0])
 
@@ -902,9 +999,10 @@ class FollowUpRole(_JasaRole):
         """
         start, end = _day_bounds(ctx.clock.today())
         row = ctx.conn.execute(
-            "SELECT 1 FROM activity WHERE business_id = ? AND agent_id = ? AND action = ? "
+            "SELECT 1 FROM activity WHERE business_id = ? AND agent_id = ? "
+            f"AND action IN ({_MESSAGE_MARKS}) "
             "AND status = 'rejected' AND created_at >= ? AND created_at < ? LIMIT 1",
-            (ctx.business_id, me, ACTION_CUSTOMER_MESSAGE, start, end),
+            (ctx.business_id, me, *MESSAGE_ACTIONS, start, end),
         ).fetchone()
         return row is not None
 
@@ -912,9 +1010,9 @@ class FollowUpRole(_JasaRole):
     def _last_queued(ctx: BusinessContext, marker: str) -> str | None:
         """``created_at`` of the newest queued message whose reason carries ``marker``."""
         row = ctx.conn.execute(
-            "SELECT MAX(created_at) FROM activity WHERE business_id = ? AND action = ? "
-            "AND status = 'done' AND reason LIKE ?",
-            (ctx.business_id, ACTION_CUSTOMER_MESSAGE, f"%{marker}%"),
+            "SELECT MAX(created_at) FROM activity WHERE business_id = ? "
+            f"AND action IN ({_MESSAGE_MARKS}) AND status = 'done' AND reason LIKE ?",
+            (ctx.business_id, *MESSAGE_ACTIONS, f"%{marker}%"),
         ).fetchone()
         return row[0]
 
@@ -966,6 +1064,8 @@ class FollowUpRole(_JasaRole):
                     },
                     cost_idr=0,
                     reason=f"Pengingat bayar {customer['name']} {rupiah(amount)} {marker}",
+                    label=LABEL_REMINDER,
+                    bubble=_bubble(f"Mengingatkan {_first_name(customer['name'])}"),
                 )
             )
         return tasks
@@ -1006,6 +1106,8 @@ class FollowUpRole(_JasaRole):
                     },
                     cost_idr=0,
                     reason=f"Ucapan terima kasih {customer['name']}, {booking['service']} {marker}",
+                    label=LABEL_THANKS,
+                    bubble=_bubble(f"Menulis terima kasih {_first_name(customer['name'])}"),
                 )
             )
         return tasks

@@ -21,7 +21,7 @@ from skeleton.runtime import (
 API_KEY = "sk-secret-123456"
 LOW = "model-low"
 STRONG = "model-strong"
-LLM_DOWN = "LLM unavailable, continuing rule-only"
+LLM_DOWN = "Model AI tidak tersedia, lanjut tanpa model"  # changed on purpose: Indonesian (task 14.1)
 
 
 class RecordingRole(BaseRole):
@@ -164,8 +164,9 @@ async def test_spend_over_limit_is_rejected_and_role_not_run(manager, conn, llm,
     assert llm.calls == []
     assert spent_today(conn, 1, FakeClock()) == 0
     [row] = rows(conn, status="rejected")
-    assert row["reason"] == "daily spending limit reached"
-    assert row["action"] == "spend"
+    # task 14.1: the row says what was rejected, how much and why (the result keeps the policy's reason)
+    assert row["reason"] == "Belanja Rp 10.001 ditolak: batas harian Rp 10.000 tercapai. Tugas: because"
+    assert row["action"] == "Belanja"  # the default label of the kind
 
 
 async def test_allowed_spend_runs_role_and_logs_cost(manager, conn, roles):
@@ -191,7 +192,8 @@ async def test_customer_message_goes_to_outbox_only(manager, conn, roles):
     assert outbox[0]["status"] == "pending"
     assert outbox[0]["body"] == "Halo"
     [row] = rows(conn, status="done")
-    assert "queued in outbox" in row["reason"]
+    assert "masuk outbox" in row["reason"]
+    assert row["action"] == "Kirim pesan pelanggan"
     assert len(roles[1].runs) == 1
 
 
@@ -268,7 +270,8 @@ async def test_rejected_customer_message_without_body_writes_no_outbox(manager, 
     assert roles[1].runs == []
     assert len(llm.calls) == 1  # the draft happened first, and is not repeated
     [row] = rows(conn, status="rejected")
-    assert row["action"] == "customer_message"
+    assert row["action"] == "Kirim pesan pelanggan"
+    assert row["reason"].startswith("Kirim pesan pelanggan ditolak: jenis aksi ini diblokir pemilik.")
 
 
 async def test_caller_cannot_inject_llm_text_into_customer_message(manager, conn, llm, roles):
@@ -363,9 +366,9 @@ async def test_assign_records_handoff_and_publishes_event(manager, conn, bus, ro
     result = await manager.assign(make_task(TaskKind.READ, agent_id=1), 2)
     assert result.status == "done"
     assert roles[1].runs == [] and len(roles[2].runs) == 1
-    [handoff] = rows(conn, action="handoff")
+    [handoff] = rows(conn, action="Serah tugas")
     assert handoff["agent_id"] == 1
-    assert "1" in handoff["reason"] and "2" in handoff["reason"]
+    assert handoff["reason"] == "A menyerahkan tugas ke A: because"  # both test agents are named "A"
     events = await drain(sub)
     assert {
         "type": "handoff",
@@ -379,7 +382,7 @@ async def test_assign_to_unknown_agent_fails_without_raising(manager, conn, bus,
     result = await manager.assign(make_task(TaskKind.READ), 99)
     assert result.status == "failed"
     assert roles[1].runs == [] and roles[2].runs == []
-    assert rows(conn, action="handoff", status="failed")
+    assert rows(conn, action="Serah tugas", status="failed")
     assert all(e["type"] != "handoff" for e in await drain(sub))
 
 
@@ -455,3 +458,57 @@ async def test_non_llm_error_from_llm_is_contained(conn, roles):
     result = await manager.handle(make_task(TaskKind.DRAFT))
     assert result.status == "failed"
     assert roles[1].runs == []
+
+
+# --------------------------------------------------------------------------- #
+# Friendly labels and descriptive rejections (task 14.1)
+# --------------------------------------------------------------------------- #
+async def test_activity_action_is_the_task_label_then_payload_label_then_the_kind_default(manager, conn):
+    await manager.handle(Task(agent_id=1, kind=TaskKind.READ, payload={}, cost_idr=0, reason="r1", label="Catat penjualan"))
+    await manager.handle(make_task(TaskKind.READ, payload={"label": "Ringkasan harian"}, reason="r2"))
+    await manager.handle(make_task(TaskKind.READ, reason="r3"))
+    await manager.handle(make_task(TaskKind.DRAFT, reason="r4"))
+    assert [r["action"] for r in rows(conn)] == ["Catat penjualan", "Ringkasan harian", "Periksa data", "Tulis draf"]
+
+
+async def test_label_is_published_as_the_action_of_the_activity_event(manager, conn, bus):
+    sub = bus.subscribe()
+    await manager.handle(Task(agent_id=1, kind=TaskKind.READ, payload={}, cost_idr=0, reason="why", label="Pesan stok"))
+    events = [e for e in await drain(sub) if e["type"] == "activity"]
+    assert [(e["action"], e["reason"]) for e in events] == [("Pesan stok", "why")]
+
+
+async def test_rejected_spend_row_names_the_action_subject_amount_limit_and_the_task_reason(manager, conn):
+    task = Task(
+        agent_id=1, kind=TaskKind.SPEND, payload={"subject": "Teh Botol"}, cost_idr=232_500,
+        reason="Stok menipis, Teh Botol tinggal 2", label="Pesan stok",
+    )
+    result = await manager.handle(task)
+    assert result.message == "daily spending limit reached"  # the result is unchanged
+    [row] = rows(conn, status="rejected")
+    assert row["action"] == "Pesan stok"
+    assert row["reason"] == (
+        "Pesan stok Teh Botol Rp 232.500 ditolak: batas harian Rp 10.000 tercapai. "
+        "Tugas: Stok menipis, Teh Botol tinggal 2"
+    )
+
+
+async def test_rejection_row_never_contains_the_api_key(manager, conn):
+    await manager.handle(make_task(TaskKind.SPEND, cost=10_001, reason=f"beli dengan {API_KEY}"))
+    [row] = rows(conn, status="rejected")
+    assert API_KEY not in row["reason"] and "***" in row["reason"]
+
+
+async def test_policy_not_set_rejection_is_explained_in_indonesian(manager, conn):
+    conn.execute("DELETE FROM policy")
+    await manager.handle(make_task(TaskKind.SPEND, cost=1_000))
+    [row] = rows(conn, status="rejected")
+    assert "aturan belanja belum diatur pemilik" in row["reason"]
+
+
+def test_task_bubble_prefers_the_short_text_then_the_reason():
+    from skeleton.runtime.models import task_bubble
+
+    assert task_bubble(Task(agent_id=1, kind="read", payload={}, cost_idr=0, reason="long reason", bubble="Singkat")) == "Singkat"
+    assert task_bubble(Task(agent_id=1, kind="read", payload={"bubble": "Dari payload"}, cost_idr=0, reason="x")) == "Dari payload"
+    assert task_bubble(Task(agent_id=1, kind="read", payload={}, cost_idr=0, reason="alasan")) == "alasan"

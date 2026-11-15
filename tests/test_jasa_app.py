@@ -536,7 +536,7 @@ def test_the_run_entry_works_from_any_folder(tmp_path):
     entry = REPO / "apps" / "kantor-jasa" / "app.py"
     result = subprocess.run([sys.executable, str(entry), "--help"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
-    for option in ("--port", "--db", "--interval", "--host", "--no-pacing", "--pace-min", "--pace-max"):
+    for option in ("--port", "--db", "--interval", "--host", "--no-pacing", "--pace-min", "--pace-max", "--real-hours"):
         assert option in result.stdout
 
 
@@ -551,3 +551,75 @@ def test_no_raw_sql_writes_in_the_jasa_app_modules():
         source = (REPO / "apps" / "kantor_jasa" / name).read_text(encoding="utf-8")
         code = re.sub(r'""".*?"""', "", source, flags=re.S)
         assert not re.search(r"\b(INSERT|UPDATE|DELETE)\b", code), name
+
+
+# ---------------------------------------------------------------------- #
+# Demo hours (task 14.1): lively at any hour, unless --real-hours
+# ---------------------------------------------------------------------- #
+NIGHT = datetime(2025, 3, 10, 2, 0, tzinfo=JAKARTA)  # 02:00 on a Monday
+
+
+def _actions(runtime):
+    return [r[0] for r in runtime.ctx.conn.execute("SELECT action FROM activity ORDER BY id")]
+
+
+async def _night_ticks(runtime, client, ticks):
+    assert (await onboard(client)).status_code == 200
+    assert (await set_policy(client)).status_code == 200
+    for _ in range(ticks):
+        await runtime.ctx.heartbeat.tick()
+        runtime.ctx.clock.advance(8)
+
+
+async def test_booking_requests_arrive_at_night_by_default(db_path):
+    runtime = create_jasa_runtime(db_path, settings=Settings(), clock=FakeClock(NIGHT), interval=8, autostart=False)
+    try:
+        app = create_app(runtime)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://jasa") as c:
+            await _night_ticks(runtime, c, ticks=30)
+        actions = _actions(runtime)
+        # about one request per 2 to 3 ticks, each one confirmed: the booking agent is busy at 02:00
+        assert actions.count("Catat permintaan") >= 5 and "Konfirmasi booking" in actions
+    finally:
+        runtime.ctx.conn.close()
+
+
+async def test_real_hours_keep_new_booking_requests_out_of_the_night(db_path):
+    runtime = create_jasa_runtime(
+        db_path, settings=Settings(), clock=FakeClock(NIGHT), interval=8, autostart=False, real_hours=True
+    )
+    try:
+        app = create_app(runtime)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://jasa") as c:
+            await _night_ticks(runtime, c, ticks=30)
+        assert "Catat permintaan" not in _actions(runtime)
+    finally:
+        runtime.ctx.conn.close()
+
+
+def test_real_hours_flag_and_environment_reach_the_runtime(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.chdir(tmp_path)
+    real = jasa_app.create_jasa_runtime
+
+    def spy(db_path, settings=None, **kw):
+        seen.append(kw.get("real_hours"))
+        return real(db_path, settings=settings, **kw)
+
+    monkeypatch.setattr(jasa_app, "create_jasa_runtime", spy)
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: None)
+    monkeypatch.delenv("KANTOR_REAL_HOURS", raising=False)
+    jasa_app.main([])
+    jasa_app.main(["--real-hours"])
+    monkeypatch.setenv("KANTOR_REAL_HOURS", "true")
+    jasa_app.main([])
+    monkeypatch.setenv("KANTOR_REAL_HOURS", "off")
+    jasa_app.main([])
+    assert seen == [False, True, True, False]
+    assert jasa_app._parse_args([]).real_hours is False and jasa_app._parse_args(["--real-hours"]).real_hours is True
+
+
+def test_readme_documents_hours_and_the_pacing_flags():
+    readme = (REPO / "apps" / "kantor-jasa" / "README.md").read_text(encoding="utf-8")
+    for flag in ("--no-pacing", "--pace-min", "--pace-max", "--real-hours", "KANTOR_REAL_HOURS", "KANTOR_PACING_MIN"):
+        assert flag in readme, flag

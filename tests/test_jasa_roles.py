@@ -105,7 +105,9 @@ def make_env(conn, clock, *, booking_feed=None, payment_feed=None, llm=None, bus
     roles = build_roles(conn, 1, clock, booking_feed=booking_feed, payment_feed=payment_feed, **kwargs)
     manager = Manager(conn, 1, clock, llm, settings, roles, bus)
     heartbeat = Heartbeat(conn, 1, clock, manager, roles, settings, bus)
-    return SimpleNamespace(roles=roles, llm=llm, heartbeat=heartbeat, ctx=BusinessContext(conn, 1, clock))
+    return SimpleNamespace(
+        roles=roles, llm=llm, heartbeat=heartbeat, manager=manager, ctx=BusinessContext(conn, 1, clock)
+    )
 
 
 def customer(conn, clock, name="Budi Santoso", phone="0811"):
@@ -187,7 +189,9 @@ async def test_booking_registers_then_confirms(conn, clock):
 
     rows = [r for r in log(conn) if r["agent_id"] == BOOKING]
     assert [r["reason"] for r in rows][0] == "Catat permintaan: Budi Santoso, Potong Rambut 01/01 13:00"
-    assert {(r["action"], r["cost_idr"], r["status"]) for r in rows} == {("read", 0, "done")}
+    assert {(r["action"], r["cost_idr"], r["status"]) for r in rows} == {
+        ("Catat permintaan", 0, "done"), ("Konfirmasi booking", 0, "done"),  # friendly labels, task 14.1
+    }
     assert len(env.llm.calls) == 0
 
 
@@ -346,7 +350,7 @@ async def test_billing_default_limit_is_500k_and_large_invoice_stays_draft_and_p
     [invoice] = invoices(conn)
     assert (invoice["status"], invoice["approved_by"], invoice["approved_at"]) == ("draft", None, None)
     waiting = [e for e in bus.events if e["type"] == "agent_state" and e["agent_id"] == BILLING and e["state"] == "waiting"]
-    assert len(waiting) == 1 and waiting[0]["bubble_text"] == results[0].message  # the amber marker
+    assert len(waiting) == 1 and waiting[0]["bubble_text"] == "Invoice #1 menunggu OK pemilik"  # the amber marker: the short bubble
 
     for _ in range(5):  # it waits for the owner and does not repeat itself
         clock.advance(3600)
@@ -481,7 +485,7 @@ async def test_followup_thanks_the_day_after_and_only_once(conn, clock):
     assert message["recipient"] == "Budi Santoso (0811)"
     assert message["body"] == "Terima kasih Kak Budi, sampai jumpa lagi!"  # drafted by the model
     assert [c["model"] for c in llm.calls] == ["strong"]
-    row = [r for r in log(conn) if r["action"] == "customer_message"][0]
+    row = [r for r in log(conn) if r["action"] == "Kirim terima kasih"][0]
     assert row["reason"].startswith("Ucapan terima kasih Budi Santoso") and f"(booking #{booking_id})" in row["reason"]
 
     for hours in (1, 5, 24, 48, 72):  # later ticks, and a restarted set of roles, send nothing more
@@ -505,7 +509,7 @@ async def test_followup_thanks_falls_back_to_a_template_when_the_model_fails(con
     assert message["status"] == "pending"
     assert "Budi Santoso" in message["body"] and "Potong Rambut" in message["body"]
     assert "Salon Cantik" in message["body"] and "lihat detail di kantor" not in message["body"]
-    assert any(r["action"] == "llm" and r["status"] == "failed" for r in log(conn))
+    assert any(r["action"] == "Model AI" and r["status"] == "failed" for r in log(conn))
 
 
 async def test_followup_does_not_thank_too_late_or_for_unfinished_services(conn, clock):
@@ -546,8 +550,8 @@ async def test_followup_reminder_after_overdue_uses_an_exact_template(conn, cloc
         f"(invoice #{invoice_id}) yang belum dibayar. Mohon konfirmasi jika sudah transfer. "
         "Terima kasih. - Salon Cantik"
     )
-    row = [r for r in log(conn) if r["action"] == "customer_message"][0]
-    assert row["reason"] == f"Pengingat bayar Budi Santoso Rp 650.000 (invoice #{invoice_id}) (queued in outbox)"
+    row = [r for r in log(conn) if r["action"] == "Kirim pengingat"][0]
+    assert row["reason"] == f"Pengingat bayar Budi Santoso Rp 650.000 (invoice #{invoice_id}) (masuk outbox, belum dikirim)"
 
 
 async def test_followup_reminder_body_is_kept_when_the_model_is_down(conn, clock):
@@ -638,7 +642,7 @@ async def test_followup_blocked_message_is_not_retried_all_day(conn, clock):
     clock.advance(600)
     assert await env.heartbeat.tick() == []
     assert outbox(conn) == []
-    assert [r["status"] for r in log(conn) if r["action"] == "customer_message"] == ["rejected"]
+    assert [r["status"] for r in log(conn) if r["action"] in ("Kirim pengingat", "Kirim terima kasih")] == ["rejected"]
 
     set_policy(conn, 1, 100_000, [])  # allowed again, the next day
     clock.advance(86400)
@@ -852,14 +856,14 @@ async def test_three_day_simulation_keeps_its_invariants(conn, clock):
     # daily message cap per Jakarta day
     per_day = {}
     for r in log(conn):
-        if r["action"] == "customer_message":
+        if r["action"] in ("Kirim pengingat", "Kirim terima kasih"):
             day = datetime.fromisoformat(r["created_at"]).astimezone(JAKARTA).date()
             per_day[day] = per_day.get(day, 0) + 1
     assert per_day and max(per_day.values()) <= cap and len(per_day) >= 2
     # a booking is thanked once and an invoice reminded at most once per 3 days
     thanks, reminders = {}, {}
     for r in log(conn):
-        if r["action"] != "customer_message" or r["status"] != "done":
+        if r["action"] not in ("Kirim pengingat", "Kirim terima kasih") or r["status"] != "done":
             continue
         if "(booking #" in r["reason"]:
             key = r["reason"].split("(booking #")[1].split(")")[0]
@@ -870,3 +874,121 @@ async def test_three_day_simulation_keeps_its_invariants(conn, clock):
     assert thanks and set(thanks.values()) == {1} and reminders
     for times in reminders.values():
         assert all(b - a >= timedelta(days=3) for a, b in zip(times, times[1:]))
+
+
+# ------------------------------------- demo hours and arrival rate (task 14.1) --
+def _requests_over(feed, conn, clock, start, step_seconds, count):
+    ctx = BusinessContext(conn, 1, clock)
+    found = []
+    for step in range(count):
+        clock.set(start + timedelta(seconds=step_seconds * step))
+        found += feed.poll(ctx)
+    return found
+
+
+def test_booking_feed_ignores_working_hours_with_demo_hours_and_keeps_them_by_default(conn, clock):
+    night = jakarta(2025, 1, 8, 1, 0)  # 01:00 to 08:00, 5-minute slots
+    kept = _requests_over(SimulatedBookingFeed(3, chance=0.5), conn, clock, night, 300, 7 * 12)
+    demo = _requests_over(SimulatedBookingFeed(3, chance=0.5, demo_hours=True), conn, clock, night, 300, 7 * 12)
+    assert kept == [] and len(demo) > 0
+    again = _requests_over(SimulatedBookingFeed(3, chance=0.5, demo_hours=True), conn, clock, night, 300, 7 * 12)
+    assert again == demo  # deterministic from the seed and the clock
+    for r in demo:  # a request at night still asks for a time inside the working hours
+        start = datetime.fromisoformat(r["starts_at"]).astimezone(JAKARTA)
+        end = start + timedelta(minutes=r["duration_min"])
+        assert 9 <= start.hour and end.hour * 60 + end.minute <= 17 * 60 and start.minute in (0, 30)
+
+
+def test_a_short_interval_raises_the_arrival_chance_to_about_one_request_per_two_to_three_ticks(conn, clock):
+    start = jakarta(2025, 1, 8, 22, 0)
+    for interval in (8, 15, 30):
+        feed = SimulatedBookingFeed(5, demo_hours=True, interval_seconds=interval)
+        found = _requests_over(feed, conn, clock, start, interval, 300)
+        assert 0.25 * 300 <= len(found) <= 0.55 * 300, (interval, len(found))  # about 0.4 per tick
+    slow = _requests_over(SimulatedBookingFeed(5, demo_hours=True), conn, clock, start, 8, 300)
+    assert len(slow) <= 3  # without the interval: one draw per 5-minute slot, as before
+
+
+def test_arrival_chance_follows_the_interval_and_never_drops_below_the_base_chance():
+    chance = lambda i: SimulatedBookingFeed(interval_seconds=i).effective_chance
+    assert chance(None) == 0.15 and chance(300) == 0.15 and chance(900) == 0.15
+    assert chance(8) == chance(30) == SimulatedBookingFeed.FAST_CHANCE
+    assert 0.15 < chance(120) < SimulatedBookingFeed.FAST_CHANCE
+    assert SimulatedBookingFeed(chance=0.9, interval_seconds=8).effective_chance == 0.9
+
+
+async def test_the_calendar_does_not_fill_up_in_minutes_at_a_short_interval(conn, clock):
+    clock.set(jakarta(2025, 1, 8, 22, 0))
+    feed = SimulatedBookingFeed(8, demo_hours=True, interval_seconds=8)
+    env = make_env(conn, clock, booking_feed=feed)
+    for _ in range(400):  # about 53 minutes at --interval 8
+        await env.heartbeat.tick()
+        clock.advance(8)
+    waiting = [b for b in bookings(conn) if b["status"] in ("requested", "confirmed")]
+    assert 0 < len(waiting) <= SimulatedBookingFeed.CALENDAR_CAP
+    assert not [b for b in bookings(conn) if b["status"] == "cancelled"]  # nothing was thrown away
+
+
+# ------------------------------------------------------ labels and bubbles --
+async def test_jasa_tasks_carry_friendly_labels_and_short_bubbles(conn, clock):
+    cust = customer(conn, clock)
+    data.request_booking(conn, 1, cust, "Creambath", "Kursi 2", at(13), 60, clock)  # confirm
+    finished(conn, clock, cust, "Warna Rambut", at(9), 120, "Kursi 1")  # invoice (above the limit)
+    old = approved(conn, clock, cust, 90_000, "owner", "Creambath")
+    done = finished(conn, clock, cust, "Cuci dan Blow", at(8, day=5), 30, "Kursi 2")  # thanked the day after
+    clock.advance(5 * 86400)
+    env = make_env(conn, clock, booking_feed=ListFeed(req(name="Siti Aminah", start=at(13, day=6))),
+                   payment_feed=ListPayments({"invoice_id": old}))
+    tasks = {}
+    for role in env.roles.values():
+        for task in role.triggers(env.ctx):
+            tasks.setdefault(task.payload["action"], task)
+    labels = {action: t.label for action, t in tasks.items()}
+    assert labels["register"] == "Catat permintaan" and labels["confirm"] == "Konfirmasi booking"
+    assert labels["invoice"] == "Buat invoice" and labels["payment"] == "Catat pembayaran"
+    assert labels["payment_reminder"] == "Kirim pengingat" and labels["thank_you"] == "Kirim terima kasih"
+    for task in tasks.values():
+        assert 0 < len(task.bubble) <= 45 and task.bubble != task.reason, task.payload["action"]
+    assert tasks["register"].bubble == "Catat permintaan Siti" and done
+
+
+async def test_the_activity_feed_reads_friendly_actions_and_never_the_task_kind(conn, clock):
+    cust = customer(conn, clock)
+    data.request_booking(conn, 1, cust, "Creambath", "Kursi 2", at(13), 60, clock)
+    finished(conn, clock, cust, "Cuci dan Blow", at(8), 30, "Kursi 2")
+    clock.advance(1000)
+    env = make_env(conn, clock, booking_feed=ListFeed(req(start=at(15))))
+    await env.heartbeat.tick()
+    actions = {r["action"] for r in log(conn)}
+    assert {"Catat permintaan", "Konfirmasi booking", "Buat invoice"} <= actions
+    assert not actions & {"read", "draft", "spend", "customer_message"}
+
+
+async def test_a_waiting_invoice_shows_a_short_waiting_bubble(conn, clock):
+    cust = customer(conn, clock)
+    finished(conn, clock, cust, "Warna Rambut", at(9), 120, "Kursi 1")
+    env = make_env(conn, clock)
+    [result] = await env.heartbeat.tick()
+    assert result.status == "pending" and result.bubble == "Invoice #1 menunggu OK pemilik"
+
+
+async def test_a_rejected_message_row_says_what_was_rejected(conn, clock):
+    cust = customer(conn, clock)
+    approved(conn, clock, cust, 650_000, "owner", "Warna Rambut")
+    clock.advance(5 * 86400)
+    set_policy(conn, 1, 100_000, ["customer_message"])  # the owner blocked messages
+    env = make_env(conn, clock)
+    pause_billing(conn)
+    await env.heartbeat.tick()
+    [row] = [r for r in log(conn) if r["status"] == "rejected"]
+    assert row["action"] == "Kirim pengingat"
+    assert row["reason"].startswith("Kirim pengingat ditolak: jenis aksi ini diblokir pemilik. Tugas: Pengingat bayar Budi Santoso")
+
+
+def test_the_jasa_template_defaults_to_the_demo_and_real_hours_restore_the_limits(conn, clock):
+    from apps.kantor_jasa.template import build_jasa_roles
+
+    feed = build_jasa_roles(conn, 1, clock)[BOOKING].feed
+    assert feed.demo_hours is True and feed.interval_seconds is None
+    real = build_jasa_roles(conn, 1, clock, real_hours=True, interval_seconds=10)[BOOKING].feed
+    assert real.demo_hours is False and real.interval_seconds == 10

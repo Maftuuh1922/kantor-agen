@@ -24,7 +24,7 @@ from skeleton.runtime import (
 API_KEY = "sk-secret-123456"
 LOW = "model-low"
 STRONG = "model-strong"
-LLM_DOWN = "LLM unavailable, continuing rule-only"
+LLM_DOWN = "Model AI tidak tersedia, lanjut tanpa model"  # Indonesian since task 14.1
 DAILY_LIMIT = 10_000
 DEFAULT_BODY = "Pesan dari {name}: lihat detail di kantor."
 HEARTBEAT_SECONDS = 300
@@ -159,7 +159,9 @@ async def test_tick_routes_each_kind_to_its_model_in_task_order(conn, clock, llm
     assert message["body"] == "Halo Kak, pesanan siap diambil."
     assert message["status"] == "pending"
     assert message["agent_id"] == 2
-    assert [r["action"] for r in log(conn)] == ["read", "draft", "spend", "customer_message"]
+    assert [r["action"] for r in log(conn)] == [
+        "Periksa data", "Tulis draf", "Belanja", "Kirim pesan pelanggan",  # default labels of the four kinds
+    ]
 
 
 async def test_routine_tick_uses_no_model_calls(conn, clock, llm):
@@ -194,7 +196,7 @@ async def test_llm_failure_mid_tick_continues_rule_only_and_logs_failed(conn, cl
     assert message["body"] == DEFAULT_BODY.format(name="kasir")
 
     failed = [r for r in log(conn) if r["status"] == "failed"]
-    assert [(r["agent_id"], r["action"]) for r in failed] == [(1, "llm"), (2, "llm")]
+    assert [(r["agent_id"], r["action"]) for r in failed] == [(1, "Model AI"), (2, "Model AI")]
     assert all(r["reason"] == LLM_DOWN for r in failed)
     assert all(API_KEY not in r["reason"] and "fake LLM failure" not in r["reason"] for r in failed)
 
@@ -250,16 +252,17 @@ async def test_handoffs_in_one_tick_keep_task_order_and_attribution(conn, clock,
     # Tasks run in agent order, then task order. A handoff row comes right before
     # the work it moves, and the work is logged under the agent that did it.
     assert [(r["agent_id"], r["action"]) for r in log(conn)] == [
-        (1, "handoff"),
-        (2, "spend"),
-        (1, "read"),
-        (2, "handoff"),
-        (1, "read"),
+        (1, "Serah tugas"),
+        (2, "Belanja"),
+        (1, "Periksa data"),
+        (2, "Serah tugas"),
+        (1, "Periksa data"),
     ]
-    handoffs = [r for r in log(conn) if r["action"] == "handoff"]
-    assert "1" in handoffs[0]["reason"] and "2" in handoffs[0]["reason"]
+    handoffs = [r for r in log(conn) if r["action"] == "Serah tugas"]
+    # The agents of this test have no name rows that differ, so the reason names them (or "staf #id").
+    assert "menyerahkan tugas ke" in handoffs[0]["reason"]
     assert "beli beras" in handoffs[0]["reason"]
-    assert "2" in handoffs[1]["reason"] and "1" in handoffs[1]["reason"]
+    assert "menyerahkan tugas ke" in handoffs[1]["reason"]
     # The receiving agent ran the work, and the spend is booked to it.
     assert [t.reason for t in roles[2].runs] == ["beli beras"]
     assert [t.reason for t in roles[1].runs] == ["cek stok", "cek kas"]
@@ -281,7 +284,7 @@ async def test_handoff_to_unknown_agent_fails_and_the_tick_goes_on(conn, clock, 
     assert [r.status for r in results] == ["failed", "done"]
     assert [t.reason for t in roles[1].runs] == ["cek rak"]
     rows = log(conn)
-    assert [(r["action"], r["status"]) for r in rows] == [("handoff", "failed"), ("read", "done")]
+    assert [(r["action"], r["status"]) for r in rows] == [("Serah tugas", "failed"), ("Periksa data", "done")]
 
 
 # --------------------------------------------------------------------------- #
@@ -385,12 +388,12 @@ async def test_every_handled_task_has_a_complete_activity_row(conn, clock, llm):
     # even though the policy then blocked it. No LLM failure, so one row per task.
     assert len(rows) == len(results) == 6
     expected = [
-        (1, "read", "done", 0, "cek stok"),
-        (1, "draft", "done", 0, "ringkas stok"),
-        (1, "spend", "done", 3_000, "beli beras"),
-        (2, "spend", "rejected", 0, "daily spending limit reached"),
-        (2, "customer_message", "rejected", 0, "blocked action type"),
-        (3, "read", "failed", 0, "role failed"),
+        (1, "Periksa data", "done", 0, "cek stok"),
+        (1, "Tulis draf", "done", 0, "ringkas stok"),
+        (1, "Belanja", "done", 3_000, "beli beras"),
+        (2, "Belanja", "rejected", 0, "Belanja Rp 3.000 ditolak: batas harian Rp 5.000 tercapai"),
+        (2, "Kirim pesan pelanggan", "rejected", 0, "ditolak: jenis aksi ini diblokir pemilik"),
+        (3, "Periksa data", "failed", 0, "role failed"),
     ]
     for row, (agent_id, action, status, cost, reason_part) in zip(rows, expected):
         assert row["agent_id"] == agent_id
@@ -422,7 +425,7 @@ async def test_queued_customer_message_row_names_the_outbox_and_costs_nothing(co
     [row] = log(conn)
     assert (row["agent_id"], row["action"], row["status"], row["cost_idr"]) == (
         1,
-        "customer_message",
+        "Kirim pesan pelanggan",
         "done",
         0,
     )
@@ -456,7 +459,7 @@ async def test_three_ticks_in_a_day_cap_spending_at_the_daily_limit(conn, clock,
     assert spent_after_tick == [7_000, 10_000, 10_000]
     assert all(spent <= DAILY_LIMIT for spent in spent_after_tick)
     # What the log says was spent matches the ledger exactly.
-    logged = sum(r["cost_idr"] for r in log(conn) if r["action"] == "spend" and r["status"] == "done")
+    logged = sum(r["cost_idr"] for r in log(conn) if r["action"] == "Belanja" and r["status"] == "done")
     assert logged == ledger_total(conn) == 10_000
     assert len([r for r in log(conn) if r["status"] == "rejected"]) == 3
     assert llm.calls == []

@@ -34,6 +34,18 @@ class TaskKind:
 
 RESULT_STATUSES: frozenset[str] = frozenset({"done", "rejected", "pending", "failed", "info"})
 
+# What the owner reads in the activity feed when a role gives no label of its own (Indonesian).
+DEFAULT_ACTION_LABELS: dict[str, str] = {
+    TaskKind.READ: "Periksa data",
+    TaskKind.DRAFT: "Tulis draf",
+    TaskKind.SPEND: "Belanja",
+    TaskKind.CUSTOMER_MESSAGE: "Kirim pesan pelanggan",
+}
+LABEL_KEY = "label"  # payload key a role may use instead of ``Task.label``
+BUBBLE_KEY = "bubble"  # payload key a role may use instead of ``Task.bubble``
+MAX_LABEL_CHARS = 60
+MAX_BUBBLE_CHARS = 60  # roles aim for 30 to 45; this is only the hard cap
+
 
 def _is_plain_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
@@ -47,6 +59,11 @@ class Task:
     cost_idr: int  # integer rupiah; 0 unless kind == "spend"
     reason: str  # shown to the owner in the activity log
     rule_only: bool = False  # set by the Manager after an LLM failure (Req 4.4)
+    # Friendly Indonesian action word for the activity feed, e.g. "Catat penjualan". Empty means
+    # "use payload['label'], else the default of the kind". ``kind`` stays what the policy engine reads.
+    label: str = ""
+    # Short speech-bubble text (about 30 to 45 characters). Empty means "use payload['bubble'], else the reason".
+    bubble: str = ""
 
     def __post_init__(self) -> None:
         if self.kind not in TaskKind.ALL:
@@ -59,6 +76,33 @@ class Task:
             raise ValueError("cost_idr must be 0 unless kind is 'spend'")
         if not isinstance(self.reason, str) or not self.reason.strip():
             raise ValueError("reason must be a non-empty string")
+        if not isinstance(self.label, str) or not isinstance(self.bubble, str):
+            raise ValueError("label and bubble must be strings")
+
+
+def _clean(text: object, limit: int) -> str:
+    if not isinstance(text, str):
+        return ""
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+
+
+def action_label(task: Task) -> str:
+    """The word the activity log stores as ``action``: the task's label, else the default of its kind."""
+    payload = task.payload if isinstance(task.payload, dict) else {}
+    return (
+        _clean(task.label, MAX_LABEL_CHARS)
+        or _clean(payload.get(LABEL_KEY), MAX_LABEL_CHARS)
+        or DEFAULT_ACTION_LABELS.get(task.kind, task.kind)
+    )
+
+
+def task_bubble(task: Any) -> str:
+    """Text for the speech bubble while the task runs: the role's short text, else the reason."""
+    payload = getattr(task, "payload", None)
+    payload = payload if isinstance(payload, dict) else {}
+    short = _clean(getattr(task, "bubble", ""), MAX_BUBBLE_CHARS) or _clean(payload.get(BUBBLE_KEY), MAX_BUBBLE_CHARS)
+    return short or str(getattr(task, "reason", "") or "")
 
 
 @dataclass
@@ -67,12 +111,15 @@ class ActionResult:
     message: str
     cost_idr: int = 0
     data: dict | None = None
+    bubble: str = ""  # short bubble for a pending result (agent waits for the owner); empty means "use message"
 
     def __post_init__(self) -> None:
         if self.status not in RESULT_STATUSES:
             raise ValueError(f"unknown result status: {self.status!r}")
         if not _is_plain_int(self.cost_idr) or self.cost_idr < 0:
             raise ValueError("cost_idr must be a non-negative int")
+        if not isinstance(self.bubble, str):
+            raise ValueError("bubble must be a string")
 
 
 @dataclass

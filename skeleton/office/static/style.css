@@ -255,7 +255,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   visibility: hidden;
   transform: translate(-50%, 4px);
   transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s linear 0.25s;
-  pointer-events: auto; /* so the tooltip with the full text works */
+  /* A bubble must never take a click: it can sit on a colleague's name label or on a character, and the
+     label and the character have to stay clickable. The full text is in the agent panel. */
+  pointer-events: none;
 }
 .bubble.is-visible {
   opacity: 1;
@@ -515,7 +517,7 @@ body.office-paused::after { /* soft grey frame while the whole office is paused 
   font-variant-numeric: tabular-nums;
 }
 .field input[aria-invalid="true"] { border-color: var(--red); }
-.field-preview { min-height: 1.3em; margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--accent); }
+.field-preview { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--accent); }
 .check-list { display: grid; gap: 8px; }
 .check-row {
   display: flex;
@@ -673,3 +675,38 @@ body.office-paused::after { /* soft grey frame while the whole office is paused 
   .type-card { transition: none; }
 }
 .onboarding .field-help { margin-top: 6px; }
+
+/* ===== Task 14.1: "Ubah nama" in the agent panel ===== */
+.panel-link {
+  margin: 8px 0 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.panel-link:hover { color: #2f4863; }
+.panel-link[hidden] { display: none; }
+.rename-form {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.rename-form[hidden] { display: none; }
+.rename-form .field { margin: 0 0 10px; }
+.rename-form .field-label { font-size: 13px; }
+.rename-form .field input[type="text"] { font-size: 14px; padding: 7px 10px; font-variant-numeric: normal; }
+.rename-form .field-help { margin: 4px 0 0; font-size: 12px; }
+.rename-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.rename-actions .btn-primary { padding: 6px 16px; border-radius: 999px; font-size: 14px; }
+
+/* Task 14.1 (H): no blank gap above an error message in the policy dialog. The amount preview used to reserve
+   a blank line (min-height) even when it was empty, and the form-level error added the fieldset margin on top. */
+.field-preview:empty { display: none; }
+.field-preview + .field-error { margin-top: 4px; }
+#policy-error { margin: -6px 0 12px; }

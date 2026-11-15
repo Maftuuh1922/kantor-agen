@@ -5,6 +5,7 @@
 // refuses every spend, so the owner has to answer it. The rest of the page is made inert while it is open.
 
 import { ACTION_KINDS, formatRupiah, parseRupiah, validatePolicyInput } from "./ui-format.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const DEFAULT_LIMIT_IDR = 100000; // the default named in the design document
 const BACKGROUND_IDS = ["office-canvas", "overlay", "hud", "side-panel", "activity-feed"];
@@ -55,7 +56,7 @@ export function createPolicyDialog({ api, onSaved }) {
   // false: the first-run dialog (cannot be dismissed). true: the owner reopened it with the Rules button to
   // change the limit later (Requirement 8.2): it starts with the saved values and can be cancelled.
   let editing = false;
-  const submitLabel = () => (editing ? "Save" : "Save and start");
+  const submitLabel = () => (editing ? TEXT.policy.save : TEXT.policy.saveAndStart);
 
   function setError(node, input, message) {
     node.textContent = message ?? "";
@@ -68,7 +69,7 @@ export function createPolicyDialog({ api, onSaved }) {
 
   function updatePreview() {
     const n = parseRupiah(limitInput.value);
-    preview.textContent = n === null ? "" : n === 0 ? "Rp 0: agents cannot spend anything." : formatRupiah(n);
+    preview.textContent = n === null ? "" : n === 0 ? TEXT.policy.zeroLimit : formatRupiah(n);
   }
 
   function readBlocked() {
@@ -160,13 +161,13 @@ export function createPolicyDialog({ api, onSaved }) {
     }
     saving = true;
     submit.disabled = true;
-    submit.textContent = "Saving\u2026";
+    submit.textContent = TEXT.policy.saving;
     try {
       const policy = await api.putPolicy(result.value);
       hide();
       onSaved?.(policy);
     } catch (err) {
-      setError(formError, null, `Could not save the policy. ${err.message}`);
+      setError(formError, null, fmt(TEXT.policy.saveFailed, { error: err.message }));
     } finally {
       saving = false;
       submit.disabled = false;

@@ -17,6 +17,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+import { TEXT } from "./ui-text.js";
 import {
   stream, traitsForAgent, resolveGender, genderFromName, genderFromId, BEARD_ID,
   SHIRT_COLORS, PANTS_COLORS, SHOE_COLORS, HAIR_COLORS, SKIN_TONES, BLOUSE_COLORS, MEN_SHIRT_COLORS, BATIK_COLORS,
@@ -237,14 +238,14 @@ export async function loadAssets(manifest, onProgress, options = {}) {
     const f = jobs.reduce((s, j) => s + j.frac * j.weight, 0) / totalWeight;
     report({ loaded: doneCount, total: jobs.length, fraction: clamp(f, 0, 1), label });
   };
-  emit("Loading characters");
+  emit(TEXT.loading.characters);
   let results;
   try {
     results = await Promise.all(jobs.map(async (job) => {
       const gltf = await loader.loadAsync(job.url, (ev) => {
         if (ev.lengthComputable && ev.total > 0) {
           job.frac = Math.max(job.frac, Math.min(0.95, ev.loaded / ev.total));
-          emit(`Loading ${job.def.id}`);
+          emit(TEXT.loading.characters);
         }
       });
       job.frac = 1;
@@ -335,7 +336,7 @@ export async function loadAssets(manifest, onProgress, options = {}) {
   for (const key of REQUIRED_CLIPS) if (!assets.clips.has(key)) throw new Error(`required clip "${key}" is not in the manifest clip_map`);
   // The animation GLBs also carry mannequin meshes; the clips are all we need.
   for (const gltf of animFiles.values()) disposeObject(gltf.scene);
-  report({ loaded: jobs.length, total: jobs.length, fraction: 1, label: "Characters ready" });
+  report({ loaded: jobs.length, total: jobs.length, fraction: 1, label: TEXT.loading.charactersReady });
   return assets;
 }
 

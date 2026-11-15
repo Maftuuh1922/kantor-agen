@@ -10,7 +10,7 @@ import pytest
 
 STATIC = Path(__file__).resolve().parent.parent / "skeleton" / "office" / "static"
 UI_MODULES = [
-    "ui-format.js", "ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js",
+    "ui-text.js", "ui-format.js", "ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js",
     "ui-hud.js", "ui-policy.js", "ui-feed.js", "ui-onboarding.js",
 ]
 JS_FILES = [*UI_MODULES, "main.js"]
@@ -78,7 +78,7 @@ def test_index_has_the_ui_elements():
     for element_id in ids:
         assert re.search(rf'\bid="{re.escape(element_id)}"', html), f"index.html has no #{element_id}"
     # The global pause button is wired now: it starts disabled only until /api/office answers.
-    assert 'aria-label="Pause all agents"' in html
+    assert 'aria-label="Jeda semua staf"' in html
     assert "coming soon" not in html
 
 
@@ -102,7 +102,7 @@ def test_policy_dialog_is_accessible():
 def test_panel_is_keyboard_accessible():
     js = read("ui-panel.js")
     assert "Escape" in js, "Escape must close the panel"
-    assert "aria-label" in js and "Close agent panel" in js
+    assert "aria-label" in js and "TEXT.panel.close" in js
     overlay = read("ui-overlay.js")
     assert 'el("button", "agent-label")' in overlay, "name labels must be buttons (focusable)"
     assert "aria-label" in overlay
@@ -110,7 +110,12 @@ def test_panel_is_keyboard_accessible():
 
 def test_ui_format_has_no_dom_or_three_dependency():
     code = strip_js_comments(read("ui-format.js"))
-    assert not re.search(r"^\s*import\b", code, re.M), "ui-format.js must not import anything"
+    # The only import is the pure dictionary of Indonesian words (task 14.1).
+    assert [i.strip() for i in re.findall(r"^\s*import\b[^;]*;", code, re.M)] == ['import { TEXT, fmt } from "./ui-text.js";']
+    ui_text = strip_js_comments(read("ui-text.js"))
+    assert not re.search(r"^\s*import\b", ui_text, re.M), "ui-text.js must not import anything"
+    for name in ("document", "window", "navigator", "THREE", "fetch(", "localStorage"):
+        assert name not in ui_text, f"ui-text.js uses {name}"
     for name in ("document", "window", "navigator", "THREE", "fetch(", "localStorage"):
         assert name not in code, f"ui-format.js uses {name}"
 
@@ -218,3 +223,51 @@ def test_onboarding_files_have_no_external_urls_and_no_unsafe_calls():
         text = read(rel)
         assert not re.search(r"https?://", text), rel
         assert not re.search(r"""\bsrc\s*=\s*["']?(https?:)?//""", text, re.I), rel
+
+
+# ---- task 14.1: Indonesian UI, bubbles, "Ubah nama" ------------------------------------------------------
+def test_the_page_language_is_indonesian():
+    html = read("index.html")
+    assert '<html lang="id">' in html and 'lang="en"' not in html
+
+
+def test_bubbles_never_take_a_click():
+    # A bubble can sit on a neighbour's name label or on a character; clicks must pass through it.
+    css = read("style.css")
+    block = re.search(r"\n\.bubble\s*\{([^}]*)\}", css).group(1)
+    assert re.search(r"pointer-events:\s*none", block)
+    assert not re.search(r"pointer-events:\s*auto", block)
+    # the name label stays clickable
+    assert re.search(r"\.agent-label\s*\{[^}]*pointer-events:\s*auto", css, re.S)
+    # and the overlay container itself lets clicks through to the 3D scene
+    assert re.search(r"\.overlay\s*\{[^}]*pointer-events:\s*none", css, re.S)
+
+
+def test_the_rename_control_is_wired_to_the_patch_endpoint():
+    api, panel, main, fmt = read("ui-api.js"), read("ui-panel.js"), read("main.js"), read("ui-format.js")
+    assert "patchAgent" in api and '"PATCH"' in api
+    # the panel: button, form, two labelled inputs, Save and Cancel, validation, Escape cancels
+    assert "TEXT.rename.open" in panel and "TEXT.rename.save" in panel and "TEXT.rename.cancel" in panel
+    assert 'el("form", "rename-form")' in panel and "noValidate" in panel
+    assert panel.count("lab.htmlFor = id") == 1 and "renameField(" in panel
+    assert "validateRename(" in panel and "renameChanges(" in panel and "api.patchAgent(" in panel
+    assert 'aria-describedby' in panel and 'setAttribute("role", "alert")' in panel and "aria-invalid" in panel
+    assert 'e.key !== "Escape"' in panel and "e.stopPropagation()" in panel
+    assert "onRenamed?.(" in panel and "aria-expanded" in panel
+    # labels follow live: main.js reloads /api/office after a rename
+    assert "onRenamed: (agent) =>" in main and "info.name = agent.name" in main and "hud.refresh()" in main
+    assert re.search(r"export function validateRename\(", fmt) and "MAX_NAME_CHARS = 80" in fmt
+    css = read("style.css")
+    assert ".rename-form" in css and ".panel-link" in css
+
+
+def test_the_policy_dialog_has_no_blank_gap_above_its_error():
+    css = read("style.css")
+    assert re.search(r"#policy-error\s*\{[^}]*margin", css, re.S), "the form-level error sits tight under the fields"
+
+
+def test_the_loading_and_fatal_messages_come_from_the_dictionary():
+    for rel in ("office.js", "characters.js", "main.js"):
+        code = strip_js_comments(read(rel))
+        assert '"Loading' not in code and "`Loading" not in code and '"Ready"' not in code, rel
+        assert "ui-text.js" in code, rel

@@ -63,10 +63,10 @@ test("validatePolicyInput explains every problem and returns no value", () => {
   const empty = F.validatePolicyInput("  ", []);
   assert.equal(empty.ok, false);
   assert.equal(empty.value, null);
-  assert.match(empty.errors.limit, /Enter/);
-  assert.match(F.validatePolicyInput("abc", []).errors.limit, /digits/);
-  assert.match(F.validatePolicyInput("-5", []).errors.limit, /digits/);
-  assert.match(F.validatePolicyInput(String(F.MAX_DAILY_LIMIT_IDR + 1), []).errors.limit, /cannot be more than/);
+  assert.match(empty.errors.limit, /Isi batas/);
+  assert.match(F.validatePolicyInput("abc", []).errors.limit, /angka/);
+  assert.match(F.validatePolicyInput("-5", []).errors.limit, /angka/);
+  assert.match(F.validatePolicyInput(String(F.MAX_DAILY_LIMIT_IDR + 1), []).errors.limit, /tidak boleh lebih dari/);
   assert.equal(F.validatePolicyInput(String(F.MAX_DAILY_LIMIT_IDR), []).ok, true);
   assert.ok(F.validatePolicyInput("1000", ["launch_missiles"]).errors.blocked);
   assert.equal(F.validatePolicyInput(null, null).ok, false);
@@ -79,7 +79,7 @@ test("ACTION_KINDS matches the backend's allowed action types", () => {
 // ---- truncation ---------------------------------------------------------------------
 
 test("truncate keeps short text and cuts long text with an ellipsis", () => {
-  assert.equal(F.truncate("Counting stock"), "Counting stock");
+  assert.equal(F.truncate("Memeriksa stok"), "Memeriksa stok");
   const long = "x".repeat(100);
   const cut = F.truncate(long, 60);
   assert.equal(Array.from(cut).length, 60);
@@ -108,13 +108,18 @@ test("truncate never exceeds the limit, collapses whitespace and counts emoji as
 
 test("bubbleText is empty for missing or blank text", () => {
   for (const v of [null, undefined, "", "   ", 3]) assert.equal(F.bubbleText(v), "");
-  assert.equal(F.bubbleText("Rice is low, please reorder"), "Rice is low, please reorder");
+  assert.equal(F.bubbleText("Beras menipis, tolong pesan"), "Beras menipis, tolong pesan");
   assert.equal(Array.from(F.bubbleText("y".repeat(200))).length, F.BUBBLE_MAX_CHARS);
 });
 
-test("errorMessage reads a string or FastAPI's list and never returns markup-only junk", () => {
-  assert.equal(F.errorMessage("agent not found"), "agent not found");
-  assert.equal(F.errorMessage([{ msg: "Input should be 0 or more" }, { msg: "bad list" }]), "Input should be 0 or more; bad list");
+test("errorMessage reads a string or FastAPI's list, speaks Indonesian and never returns markup-only junk", () => {
+  assert.equal(F.errorMessage("agent not found"), "Staf tidak ditemukan.", "fixed API messages are translated");
+  assert.equal(F.errorMessage("Pesan dari server"), "Pesan dari server", "other text passes through");
+  assert.equal(F.errorMessage([{ msg: "must not be blank" }]), "Tidak boleh kosong.");
+  // validator text we cannot translate is not shown in English
+  assert.equal(F.errorMessage([{ msg: "Input should be 0 or more" }, { msg: "bad list" }]), "Isian belum benar.");
+  assert.equal(F.errorMessage("constructor"), "constructor", "no prototype lookups");
+  assert.equal(F.errorMessage(undefined), "Terjadi kesalahan. Coba lagi.");
   assert.equal(F.errorMessage(undefined, "fallback"), "fallback");
   assert.equal(F.errorMessage([], "fallback"), "fallback");
   assert.ok(Array.from(F.errorMessage("e".repeat(500))).length <= 200);
@@ -136,6 +141,8 @@ test("formatJakartaTime gives a placeholder for bad input", () => {
   for (const bad of [null, undefined, "", "yesterday", 12, {}]) assert.equal(F.formatJakartaTime(bad), "--:--");
   assert.equal(F.formatJakartaDateTime("nope"), "");
   assert.match(F.formatJakartaDateTime("2025-11-14T07:30:00+00:00"), /14 Nov.*14:30.*WIB/);
+  assert.match(F.formatJakartaDateTime("2025-08-17T01:00:00+00:00"), /17 Agu.*08:00.*WIB/, "month names are Indonesian");
+  assert.match(F.formatJakartaDateTime("2025-10-05T01:00:00+00:00"), /5 Okt/);
 });
 
 // ---- colors -----------------------------------------------------------------------
@@ -157,13 +164,16 @@ test("stateColor agrees with the behavior controller's markers", () => {
   }
 });
 
-test("stateLabel and stateDetail describe idle behaviors as idle", () => {
-  assert.equal(F.stateLabel("waiting"), "Waiting for your approval");
-  assert.equal(F.stateLabel("???"), "Unknown");
-  assert.equal(F.stateDetail("idle", null), "Idle");
-  assert.equal(F.stateDetail("idle", "drink"), "Idle (getting a drink)");
-  assert.equal(F.stateDetail("idle", "chat"), "Idle (chatting with a colleague)");
-  assert.equal(F.stateDetail("working", "drink"), "Working", "only idle shows an idle behavior");
+test("stateLabel and stateDetail are Indonesian and describe idle behaviors as idle", () => {
+  assert.deepEqual(
+    ["idle", "working", "handoff", "waiting", "paused"].map(F.stateLabel),
+    ["Santai", "Bekerja", "Serah-terima", "Menunggu persetujuan", "Dijeda"],
+  );
+  assert.equal(F.stateLabel("???"), "Tidak diketahui");
+  assert.equal(F.stateDetail("idle", null), "Santai");
+  assert.equal(F.stateDetail("idle", "drink"), "Santai (mengambil minum)");
+  assert.equal(F.stateDetail("idle", "chat"), "Santai (mengobrol dengan rekan)");
+  assert.equal(F.stateDetail("working", "drink"), "Bekerja", "only idle shows an idle behavior");
 });
 
 test("actionStatusColor maps activity statuses", () => {
@@ -173,18 +183,56 @@ test("actionStatusColor maps activity statuses", () => {
   assert.equal(F.actionStatusColor("failed"), "red");
   assert.equal(F.actionStatusColor("info"), "grey");
   assert.equal(F.actionStatusColor("other"), "grey");
-  assert.equal(F.actionStatusLabel("done"), "Done");
-  assert.equal(F.actionStatusLabel("other"), "Unknown");
+  assert.deepEqual(
+    ["done", "pending", "rejected", "failed", "info"].map(F.actionStatusLabel),
+    ["Selesai", "Menunggu", "Ditolak", "Gagal", "Info"],
+  );
+  assert.equal(F.actionStatusLabel("other"), "Tidak diketahui");
 });
 
 // ---- spending summary --------------------------------------------------------------
 
 test("spendSummary and spendRatio", () => {
   assert.equal(F.spendSummary(45000, 100000), "Rp 45.000 / Rp 100.000");
-  assert.equal(F.spendSummary(0, null), "Rp 0 / not set");
+  assert.equal(F.spendSummary(0, null), "Rp 0 / belum diatur");
   assert.equal(F.spendRatio(45000, 100000), 0.45);
   assert.equal(F.spendRatio(150000, 100000), 1);
   assert.equal(F.spendRatio(0, 100000), 0);
   assert.equal(F.spendRatio(500, null), 0);
   assert.equal(F.spendRatio(500, 0), 1);
+});
+
+// ---- rename form (Requirement 1.4) --------------------------------------------------------
+test("validateRename trims both texts and returns the PATCH body values", () => {
+  const r = F.validateRename("  Sari Dewi ", " Kasir Utama ");
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.value, { name: "Sari Dewi", role: "Kasir Utama" });
+  assert.deepEqual(r.errors, {});
+  assert.equal(F.validateRename("A".repeat(80), "B").ok, true, "80 characters is allowed");
+});
+
+test("validateRename explains every problem in Indonesian and returns no value", () => {
+  const empty = F.validateRename("   ", "");
+  assert.equal(empty.ok, false);
+  assert.equal(empty.value, null);
+  assert.equal(empty.errors.name, "Nama tidak boleh kosong.");
+  assert.equal(empty.errors.role, "Peran tidak boleh kosong.");
+  assert.match(F.validateRename("A".repeat(81), "x").errors.name, /terlalu panjang.*80/);
+  assert.match(F.validateRename("x", "B".repeat(81)).errors.role, /terlalu panjang/);
+  assert.match(F.validateRename("Bu\u0000Tini", "x").errors.name, /karakter kontrol/);
+  assert.equal(F.validateRename(null, undefined).ok, false);
+  assert.equal(F.validateRename("\u{1F600}".repeat(80), "x").ok, true, "emoji count as one character, like the server");
+});
+
+test("renameChanges sends only what changed", () => {
+  const current = { name: "Sari", role: "Kasir" };
+  assert.deepEqual(F.renameChanges(current, { name: "Sari", role: "Kasir" }), {});
+  assert.deepEqual(F.renameChanges(current, { name: "Sari Dewi", role: "Kasir" }), { name: "Sari Dewi" });
+  assert.deepEqual(F.renameChanges(current, { name: "Sari", role: "Kasir Utama" }), { role: "Kasir Utama" });
+  assert.deepEqual(F.renameChanges(current, { name: "Dewi", role: "Bos" }), { name: "Dewi", role: "Bos" });
+});
+
+test("ACTION_KINDS come from the Indonesian dictionary", () => {
+  assert.deepEqual(F.ACTION_KINDS.map((k) => k.label), ["Baca data", "Tulis draf", "Belanja", "Pesan ke pelanggan"]);
+  assert.ok(F.ACTION_KINDS.every((k) => k.hint.length > 10));
 });

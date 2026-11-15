@@ -32,13 +32,25 @@ JASA_KEY = "jasa"
 SUGGESTED_DAILY_LIMIT_IDR = 100_000  # the Jasa staff spend nothing; the policy still gates messages
 
 
-def build_jasa_roles(conn: sqlite3.Connection, business_id: int, clock: Clock) -> dict[int, Role]:
-    """Role instances for the Jasa agents, with the simulated walk-in requests and payments."""
+def build_jasa_roles(
+    conn: sqlite3.Connection,
+    business_id: int,
+    clock: Clock,
+    *,
+    real_hours: bool = False,
+    interval_seconds: float | None = None,
+) -> dict[int, Role]:
+    """Role instances for the Jasa agents, with the simulated walk-in requests and payments.
+
+    By default (``real_hours=False``) this is the demo: booking requests arrive at any hour.
+    ``real_hours=True`` (``--real-hours``) keeps the working hours. ``interval_seconds`` is the heartbeat
+    interval: a short one raises the arrival chance (see ``roles.py``).
+    """
     return build_roles(
         conn,
         business_id,
         clock,
-        booking_feed=SimulatedBookingFeed(),
+        booking_feed=SimulatedBookingFeed(demo_hours=not real_hours, interval_seconds=interval_seconds),
         payment_feed=SimulatedPaymentFeed(seed=DEMO_PAYMENT_SEED),
     )
 

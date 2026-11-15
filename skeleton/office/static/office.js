@@ -14,6 +14,7 @@
 
 import * as THREE from "three";
 import { layout, GRID_SIZE, MAX_AGENTS, ROOM, DOOR } from "./layout.js";
+import { TEXT } from "./ui-text.js";
 
 export { layout, GRID_SIZE, MAX_AGENTS };
 
@@ -314,7 +315,7 @@ export function createOffice(canvas, options = {}) {
     loadingRoot.classList.add("done");
     loadingRoot.setAttribute("aria-hidden", "true");
   }
-  setLoadingProgress(0.05, "Starting renderer");
+  setLoadingProgress(0.05, TEXT.loading.renderer);
 
   // -- renderer --
   const renderer = new THREE.WebGLRenderer({
@@ -430,7 +431,7 @@ export function createOffice(canvas, options = {}) {
   root.name = "office-root";
   scene.add(root);
 
-  setLoadingProgress(0.15, "Building floor and walls");
+  setLoadingProgress(0.15, TEXT.loading.floor);
 
   // -- floor, slab, rug --
   const floor = new THREE.Mesh(GEO.plane, MAT.floor);
@@ -469,7 +470,7 @@ export function createOffice(canvas, options = {}) {
   box(MAT.baseboard, (DOOR.maxX + ROOM.maxX) / 2, 0.07, innerBack + 0.02, ROOM.maxX - DOOR.maxX - 0.2, 0.14, 0.04, null, undefined, false);
   box(MAT.baseboard, innerLeft + 0.02, 0.07, 0, 0.04, 0.14, ROOM.maxZ - ROOM.minZ - 0.3, null, undefined, false);
 
-  setLoadingProgress(0.35, "Placing desks");
+  setLoadingProgress(0.35, TEXT.loading.desks);
 
   // -- desks, chairs, monitors --
   const deskRecords = [];
@@ -509,7 +510,7 @@ export function createOffice(canvas, options = {}) {
     deskRecords.push({ index: d.index, group, screen, occupied: false });
   }
 
-  setLoadingProgress(0.55, "Placing pantry and meeting table");
+  setLoadingProgress(0.55, TEXT.loading.pantry);
 
   // -- pantry --
   const pc = layout.pantry.counter;
@@ -562,7 +563,7 @@ export function createOffice(canvas, options = {}) {
   box(MAT.white, mt.cx + 0.6, 0.775, mt.cz + 0.25, 0.28, 0.01, 0.2, null, undefined, false);
   cyl(MAT.glass, mt.cx, 0.87, mt.cz, 0.07, 0.2, null, undefined, false);
 
-  setLoadingProgress(0.75, "Adding decor");
+  setLoadingProgress(0.75, TEXT.loading.decor);
 
   // -- plants (deterministic variation) --
   const rnd = mulberry32(42);
@@ -608,7 +609,7 @@ export function createOffice(canvas, options = {}) {
   box(MAT.sky, wx + 0.05, 1.7, 3.6, 0.01, 1.14, 2.34, null, undefined, false);
   box(MAT.deskFrame, wx + 0.058, 1.7, 3.6, 0.012, 1.14, 0.04, null, undefined, false);
 
-  setLoadingProgress(0.85, "Building meshes");
+  setLoadingProgress(0.85, TEXT.loading.meshes);
 
   // -- build InstancedMesh per batch --
   const staticMeshes = [];
@@ -749,7 +750,7 @@ export function createOffice(canvas, options = {}) {
     renderer.render(scene, camera);
     if (!firstFrame) {
       firstFrame = true;
-      setLoadingProgress(1, "Ready");
+      setLoadingProgress(1, TEXT.loading.ready);
       if (options.autoHideLoading !== false) requestAnimationFrame(hideLoading);
       resolveReady(renderer.info.render);
     }
@@ -824,7 +825,7 @@ export function createOffice(canvas, options = {}) {
   applyShadows(quality !== "low");
   resize();
   controls.reset();
-  setLoadingProgress(0.95, "Rendering first frame");
+  setLoadingProgress(0.95, TEXT.loading.firstFrame);
 
   return {
     scene,

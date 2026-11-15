@@ -434,7 +434,7 @@ def test_the_run_entry_works_from_any_folder(tmp_path):
     entry = REPO / "apps" / "kantor-warung" / "app.py"
     result = subprocess.run([sys.executable, str(entry), "--help"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
-    for option in ("--port", "--db", "--interval", "--host"):
+    for option in ("--port", "--db", "--interval", "--host", "--real-hours", "--no-pacing", "--pace-min", "--pace-max"):
         assert option in result.stdout
 
 
@@ -449,3 +449,85 @@ def test_seed_writes_only_through_the_data_layer():
     code = re.sub(r'""".*?"""', "", source, flags=re.S)
     assert not re.search(r"\b(INSERT|UPDATE|DELETE)\b", code, re.I), "seed.py must not write money tables with raw SQL"
     assert "data.record_sale" in code and "data.add_product" in code
+
+
+# ---------------------------------------------------------------------- #
+# Demo hours (task 14.1): lively at any hour, unless --real-hours
+# ---------------------------------------------------------------------- #
+NIGHT = datetime(2025, 3, 10, 2, 0, tzinfo=JAKARTA)  # 02:00 on a Monday
+
+
+def _actions(runtime):
+    return [r[0] for r in runtime.ctx.conn.execute("SELECT action FROM activity ORDER BY id")]
+
+
+async def _night_ticks(runtime, client, ticks=30):
+    assert (await onboard(client)).status_code == 200
+    assert (await set_policy(client)).status_code == 200
+    for _ in range(ticks):
+        await runtime.ctx.heartbeat.tick()
+        runtime.ctx.clock.advance(8)
+
+
+async def test_the_staff_sell_at_night_by_default(db_path):
+    runtime = create_warung_runtime(db_path, settings=Settings(), clock=FakeClock(NIGHT), interval=10, autostart=False)
+    try:
+        app = create_app(runtime)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://warung") as c:
+            await _night_ticks(runtime, c, ticks=80)
+        assert "Catat penjualan" in _actions(runtime)  # demo hours: a sale at 02:00 without any clock trick
+        feed = next(r for r in runtime.ctx.heartbeat._roles.values() if isinstance(r, CashierRole)).feed
+        assert feed.demo_hours is True and feed.interval_seconds == 10
+    finally:
+        runtime.ctx.conn.close()
+
+
+async def test_real_hours_keep_the_shop_closed_at_night(db_path):
+    runtime = create_warung_runtime(
+        db_path, settings=Settings(), clock=FakeClock(NIGHT), interval=10, autostart=False, real_hours=True
+    )
+    try:
+        app = create_app(runtime)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://warung") as c:
+            await _night_ticks(runtime, c, ticks=80)
+        assert "Catat penjualan" not in _actions(runtime)
+        feed = next(r for r in runtime.ctx.heartbeat._roles.values() if isinstance(r, CashierRole)).feed
+        assert feed.demo_hours is False
+    finally:
+        runtime.ctx.conn.close()
+
+
+def test_real_hours_flag_and_environment_reach_the_runtime(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.chdir(tmp_path)
+    real = warung_app.create_warung_runtime
+
+    def spy(db_path, settings=None, **kw):
+        seen.append(kw.get("real_hours"))
+        return real(db_path, settings=settings, **kw)
+
+    monkeypatch.setattr(warung_app, "create_warung_runtime", spy)
+    monkeypatch.setattr("uvicorn.run", lambda app, **kw: None)
+    monkeypatch.delenv("KANTOR_REAL_HOURS", raising=False)
+    warung_app.main([])
+    warung_app.main(["--real-hours"])
+    monkeypatch.setenv("KANTOR_REAL_HOURS", "1")
+    warung_app.main([])
+    monkeypatch.setenv("KANTOR_REAL_HOURS", "0")
+    warung_app.main([])
+    assert seen == [False, True, True, False]
+    assert warung_app._parse_args([]).real_hours is False and warung_app._parse_args(["--real-hours"]).real_hours is True
+
+
+def test_a_bad_real_hours_environment_value_stops_the_app_with_a_message(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KANTOR_REAL_HOURS", "maybe")
+    with pytest.raises(SystemExit, match="KANTOR_REAL_HOURS"):
+        warung_app.main([])
+
+
+def test_readme_documents_hours_and_the_pacing_flags():
+    readme = (REPO / "apps" / "kantor-warung" / "README.md").read_text(encoding="utf-8")
+    for flag in ("--no-pacing", "--pace-min", "--pace-max", "--real-hours", "KANTOR_REAL_HOURS", "KANTOR_PACING_MIN"):
+        assert flag in readme, flag
+    assert "docs/pacing.md" in readme

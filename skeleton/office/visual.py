@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any
 
 from skeleton.core.clock import Clock
 from skeleton.core.events import EventBus, Subscription, SubscriptionClosed
+from skeleton.runtime.models import task_bubble
 
 if TYPE_CHECKING:  # avoid importing the runtime just for a type
     from skeleton.runtime.heartbeat import Heartbeat
@@ -160,12 +161,12 @@ def snapshot(
         bubble = ""
         if state is VisualState.HANDOFF:
             target = ctx.handoff_target
-            bubble = ctx.handoff_text or f"Handoff to {names.get(target, target)}"
+            bubble = ctx.handoff_text or f"Serah tugas ke {names.get(target, target)}"
         elif state is VisualState.WORKING:
             if ctx.reported_state == "working" and ctx.bubble_text:
                 bubble = ctx.bubble_text
             else:
-                bubble = str(getattr(running, "reason", "") or "")
+                bubble = task_bubble(running)
         elif state is VisualState.WAITING:
             bubble = ctx.bubble_text
 
@@ -219,7 +220,7 @@ class VisualTracker:
         if heartbeat is not None:
             # Tasks already running when the tracker is created.
             for agent_id, task in heartbeat.running.items():
-                self._reported[agent_id] = ("working", str(getattr(task, "reason", "")))
+                self._reported[agent_id] = ("working", task_bubble(task))
         # Start from the present state, so only later changes are published.
         self._last: dict[int, dict] = {e["agent_id"]: e for e in self.current()}
 

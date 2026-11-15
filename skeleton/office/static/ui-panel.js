@@ -1,4 +1,5 @@
-// Agent panel (#side-panel): role, live state, current action, spending today, recent actions, pause button.
+// Agent panel (#side-panel): role, live state, current action, spending today, recent actions, pause button,
+// and the "Ubah nama" control that renames the agent and changes its role label (Requirement 1.4).
 //
 // Data comes from GET /api/agents/{id} (or the mock). It is reloaded when an `activity` event names this
 // agent and every 10 seconds while the panel is open. The live parts (state, current action) are read from
@@ -6,9 +7,10 @@
 // All server text is set with textContent.
 
 import {
-  actionStatusColor, actionStatusLabel, bubbleText, formatJakartaDateTime, formatJakartaTime,
-  formatRupiah, stateColor, stateDetail,
+  MAX_NAME_CHARS, actionStatusColor, actionStatusLabel, bubbleText, formatJakartaDateTime, formatJakartaTime,
+  formatRupiah, renameChanges, stateColor, stateDetail, validateRename,
 } from "./ui-format.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const REFRESH_MS = 10000;
 const LIVE_EVERY_S = 0.25;
@@ -29,20 +31,72 @@ function el(tag, className, text) {
  * @param opts.isOfficePaused  () => boolean
  * @param opts.onClose      (id) => void, after the panel closed (return focus here)
  * @param opts.onPauseChanged  () => void, after a pause or resume succeeded
+ * @param opts.onRenamed    (agent) => void, after the agent was renamed (reload /api/office so every label follows)
  */
-export function createPanel({ root, api, controller, agentInfo, isOfficePaused, onClose, onPauseChanged }) {
+export function createPanel({ root, api, controller, agentInfo, isOfficePaused, onClose, onPauseChanged, onRenamed }) {
   // ---- structure (built once) ----
   const nameEl = el("h2", "panel-name");
   nameEl.tabIndex = -1;
   const roleEl = el("p", "panel-role");
   const closeBtn = el("button", "panel-close", "\u00d7");
   closeBtn.type = "button";
-  closeBtn.setAttribute("aria-label", "Close agent panel");
-  closeBtn.title = "Close (Esc)";
+  closeBtn.setAttribute("aria-label", TEXT.panel.close);
+  closeBtn.title = TEXT.panel.closeTitle;
   const head = el("header", "panel-head");
   const headText = el("div", "panel-head-text");
   headText.append(nameEl, roleEl);
   head.append(headText, closeBtn);
+
+  // "Ubah nama": a link-style button that opens a small form (name, role label, Simpan / Batal).
+  const renameBtn = el("button", "panel-link", TEXT.rename.open);
+  renameBtn.type = "button";
+  renameBtn.setAttribute("aria-expanded", "false");
+  renameBtn.setAttribute("aria-controls", "rename-form");
+
+  const renameForm = el("form", "rename-form");
+  renameForm.id = "rename-form";
+  renameForm.noValidate = true;
+  renameForm.hidden = true;
+  renameForm.setAttribute("aria-label", TEXT.rename.title);
+  function renameField(id, label, help) {
+    const wrap = el("div", "field");
+    const lab = el("label", "field-label", label);
+    lab.htmlFor = id;
+    const input = el("input");
+    input.type = "text";
+    input.id = id;
+    input.maxLength = MAX_NAME_CHARS;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    const err = el("p", "field-error");
+    err.id = `${id}-error`;
+    err.setAttribute("role", "alert");
+    err.hidden = true;
+    const described = [];
+    wrap.append(lab, input);
+    if (help) {
+      const note = el("p", "field-help", help);
+      note.id = `${id}-help`;
+      wrap.append(note);
+      described.push(note.id);
+    }
+    described.push(err.id);
+    input.setAttribute("aria-describedby", described.join(" "));
+    wrap.append(err);
+    return { wrap, input, err };
+  }
+  const nameField = renameField("rename-name", TEXT.rename.name);
+  const roleField = renameField("rename-role", TEXT.rename.role, TEXT.rename.roleHelp);
+  const renameError = el("p", "field-error");
+  renameError.setAttribute("role", "alert");
+  renameError.hidden = true;
+  const renameSave = el("button", "btn-primary", TEXT.rename.save);
+  renameSave.type = "submit";
+  const renameCancel = el("button", "hud-btn", TEXT.rename.cancel);
+  renameCancel.type = "button";
+  const renameActions = el("div", "rename-actions");
+  renameActions.append(renameCancel, renameSave);
+  renameForm.append(nameField.wrap, roleField.wrap, renameError, renameActions);
 
   const marker = el("span", "marker marker-grey");
   marker.setAttribute("aria-hidden", "true");
@@ -51,24 +105,24 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
   stateRow.append(marker, stateEl);
   const bubbleEl = el("p", "panel-bubble");
 
-  const spendLabel = el("dt", null, "Spending today");
+  const spendLabel = el("dt", null, TEXT.panel.spendToday);
   const spendValue = el("dd", "panel-spend");
   const facts = el("dl", "panel-facts");
   facts.append(spendLabel, spendValue);
 
-  const pauseBtn = el("button", "panel-btn", "Pause agent");
+  const pauseBtn = el("button", "panel-btn", TEXT.panel.pause);
   pauseBtn.type = "button";
   const officeNote = el("p", "panel-note");
   const errorEl = el("p", "panel-error");
   errorEl.setAttribute("role", "alert");
   errorEl.hidden = true;
 
-  const listTitle = el("h3", "panel-subtitle", "Recent actions");
+  const listTitle = el("h3", "panel-subtitle", TEXT.panel.recent);
   const listEl = el("ul", "action-list");
-  listEl.setAttribute("aria-label", "Recent actions, newest first");
+  listEl.setAttribute("aria-label", TEXT.panel.recentLabel);
   const emptyEl = el("p", "panel-empty");
 
-  root.replaceChildren(head, stateRow, bubbleEl, facts, pauseBtn, officeNote, errorEl, listTitle, listEl, emptyEl);
+  root.replaceChildren(head, renameBtn, renameForm, stateRow, bubbleEl, facts, pauseBtn, officeNote, errorEl, listTitle, listEl, emptyEl);
 
   // ---- state ----
   let openId = null;
@@ -80,6 +134,8 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
   let activityTimer = null;
   let liveClock = 0;
   let busy = false;         // pause request in flight
+  let renaming = false;     // the rename form is open
+  let renameSaving = false; // PATCH in flight
 
   const isOpen = () => openId !== null;
 
@@ -101,12 +157,13 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
     const info = currentInfo();
     nameEl.textContent = info.name;
     roleEl.textContent = info.role;
-    root.setAttribute("aria-label", `Agent panel: ${info.name}`);
+    root.setAttribute("aria-label", fmt(TEXT.panel.ariaFor, { name: info.name }));
+    renameBtn.setAttribute("aria-label", fmt(TEXT.rename.openLabel, { name: info.name }));
     spendValue.textContent = data ? formatRupiah(data.spent_today_idr) : "-";
-    pauseBtn.textContent = info.paused ? "Resume agent" : "Pause agent";
-    pauseBtn.setAttribute("aria-label", `${info.paused ? "Resume" : "Pause"} ${info.name}`);
+    pauseBtn.textContent = info.paused ? TEXT.panel.resume : TEXT.panel.pause;
+    pauseBtn.setAttribute("aria-label", fmt(info.paused ? TEXT.panel.resumeFor : TEXT.panel.pauseFor, { name: info.name }));
     pauseBtn.disabled = busy || !data;
-    officeNote.textContent = isOfficePaused?.() ? "The whole office is paused, so no agent starts new work." : "";
+    officeNote.textContent = isOfficePaused?.() ? TEXT.panel.officePaused : "";
     officeNote.hidden = !officeNote.textContent;
     renderActions();
   }
@@ -120,7 +177,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
     stateEl.textContent = detail;
     marker.title = detail;
     const text = bubbleText(status ? status.bubble_text : data?.bubble_text);
-    bubbleEl.textContent = text ? `\u201c${text}\u201d` : "No current action";
+    bubbleEl.textContent = text ? `\u201c${text}\u201d` : TEXT.panel.noAction;
     bubbleEl.classList.toggle("is-empty", !text);
     const full = String((status ? status.bubble_text : data?.bubble_text) ?? "").trim();
     if (full && full !== text) bubbleEl.title = full;
@@ -144,8 +201,8 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
     });
     listEl.replaceChildren(...items);
     if (items.length) emptyEl.textContent = "";
-    else if (!loadedOnce) emptyEl.textContent = loading ? "Loading\u2026" : "";
-    else emptyEl.textContent = "No actions yet today.";
+    else if (!loadedOnce) emptyEl.textContent = loading ? TEXT.panel.loading : "";
+    else emptyEl.textContent = TEXT.panel.empty;
     emptyEl.hidden = !emptyEl.textContent;
   }
 
@@ -163,7 +220,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
       if (!busy) showError("");
     } catch (err) {
       if (mine !== seq || openId !== id) return;
-      showError(`Could not load the latest data. ${err.message}`);
+      showError(fmt(TEXT.panel.loadFailed, { error: err.message }));
       loadedOnce = true;
     } finally {
       if (mine === seq) loading = false;
@@ -182,6 +239,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
       data = null;
       loadedOnce = false;
       busy = false;
+      closeRename({ restoreFocus: false });
       showError("");
     }
     root.hidden = false;
@@ -198,6 +256,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
     const id = openId;
     const hadFocus = root.contains(document.activeElement);
     openId = null;
+    closeRename({ restoreFocus: false });
     seq++;
     clearInterval(timer);
     clearTimeout(activityTimer);
@@ -207,6 +266,97 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
   }
 
   closeBtn.addEventListener("click", () => close());
+
+  // ---- rename (Requirement 1.4) ----
+  function setFieldError(field, message) {
+    field.err.textContent = message ?? "";
+    field.err.hidden = !message;
+    if (message) field.input.setAttribute("aria-invalid", "true");
+    else field.input.removeAttribute("aria-invalid");
+  }
+  function setRenameError(message) {
+    renameError.textContent = message ?? "";
+    renameError.hidden = !message;
+  }
+  function setRenameBusy(on) {
+    renameSaving = on;
+    nameField.input.disabled = on;
+    roleField.input.disabled = on;
+    renameSave.disabled = on;
+    renameCancel.disabled = on;
+    renameSave.textContent = on ? TEXT.rename.saving : TEXT.rename.save;
+  }
+  function openRename() {
+    if (openId == null || renaming) return;
+    const info = currentInfo();
+    renaming = true;
+    nameField.input.value = String(info.name ?? "");
+    roleField.input.value = String(info.role ?? "");
+    setFieldError(nameField, "");
+    setFieldError(roleField, "");
+    setRenameError("");
+    setRenameBusy(false);
+    renameForm.hidden = false;
+    renameBtn.hidden = true;
+    renameBtn.setAttribute("aria-expanded", "true");
+    nameField.input.focus({ preventScroll: true });
+    nameField.input.select();
+  }
+  /** Hide the form. `restoreFocus`: put the focus back on the "Ubah nama" button (cancel, save, Escape). */
+  function closeRename({ restoreFocus = true } = {}) {
+    if (!renaming) return;
+    renaming = false;
+    renameSaving = false;
+    renameForm.hidden = true;
+    renameBtn.hidden = false;
+    renameBtn.setAttribute("aria-expanded", "false");
+    if (restoreFocus) renameBtn.focus({ preventScroll: true });
+  }
+  renameBtn.addEventListener("click", openRename);
+  renameCancel.addEventListener("click", () => { if (!renameSaving) closeRename(); });
+  // Escape cancels the form and nothing more: preventDefault tells the panel's own Escape handler to stay open.
+  renameForm.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!renameSaving) closeRename();
+  });
+  for (const field of [nameField, roleField]) {
+    field.input.addEventListener("input", () => { if (!field.err.hidden) setFieldError(field, ""); });
+  }
+  renameForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (openId == null || renameSaving) return;
+    const id = openId;
+    setRenameError("");
+    const result = validateRename(nameField.input.value, roleField.input.value);
+    setFieldError(nameField, result.errors.name);
+    setFieldError(roleField, result.errors.role);
+    if (!result.ok) {
+      (result.errors.name ? nameField : roleField).input.focus();
+      return;
+    }
+    const changes = renameChanges(currentInfo(), result.value);
+    if (Object.keys(changes).length === 0) {
+      closeRename(); // nothing to save
+      return;
+    }
+    setRenameBusy(true);
+    try {
+      const agent = await api.patchAgent(id, changes);
+      if (openId !== id) return;
+      data = data ? { ...data, name: agent.name, role: agent.role } : data;
+      closeRename();
+      renderStatic();
+      renderLive();
+      onRenamed?.(agent);
+      refresh();
+    } catch (err) {
+      if (openId !== id || !renaming) return;
+      setRenameBusy(false);
+      setRenameError(fmt(TEXT.rename.saveFailed, { error: err.message }));
+    }
+  });
 
   pauseBtn.addEventListener("click", async () => {
     if (openId == null || busy || !data) return;
@@ -220,7 +370,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
       if (openId === id) data = { ...data, paused: !!res.paused };
       onPauseChanged?.(res);
     } catch (err) {
-      if (openId === id) showError(`Could not ${want ? "pause" : "resume"} the agent. ${err.message}`);
+      if (openId === id) showError(fmt(want ? TEXT.panel.pauseFailed : TEXT.panel.resumeFailed, { error: err.message }));
     } finally {
       busy = false;
       if (openId === id) {

@@ -14,6 +14,10 @@ the office. See ``apps/kantor-warung/README.md``.
 * The server binds to 127.0.0.1 unless ``--host`` says otherwise.
 * The heartbeat interval comes from ``KANTOR_HEARTBEAT_SECONDS`` (default 300), or
   ``--interval``. The heartbeat starts when the owner has saved the spending rules.
+* Demo hours: the simulated customers come at ANY hour, so the office is lively at night too, and
+  a delivery takes about a minute. ``--real-hours`` (or ``KANTOR_REAL_HOURS=1``) keeps the shop hours
+  (07:00 to 21:00 Jakarta time) and the 2-hour delivery. With a short ``--interval`` the simulated
+  sales are scaled down, so the stock lasts (see ``roles.py``).
 * Work pacing ("think time", ``docs/pacing.md``) is ON when you start the app from the command
   line, so the staff are visibly working: each task is held as "running" for a few seconds.
   ``--no-pacing`` (or ``KANTOR_PACING=0``) turns it off; ``--pace-min`` / ``--pace-max`` (or
@@ -31,7 +35,7 @@ import argparse
 import dataclasses
 import sqlite3
 
-from apps.kantor_warung.template import WARUNG_KEY, WARUNG_TEMPLATE
+from apps.kantor_warung.template import WARUNG_KEY, WARUNG_TEMPLATE, build_warung_roles
 from skeleton.core import db
 from skeleton.core.clock import Clock, SystemClock
 from skeleton.core.config import Settings, load_settings
@@ -42,6 +46,7 @@ from skeleton.office.context import OfficeContext, OfficeRuntime
 from skeleton.office.onboarding import TemplateRegistry, bootstrap, ensure_label_table
 from skeleton.office.visual import VisualTracker
 from skeleton.runtime.heartbeat import Heartbeat
+from skeleton.runtime.demo_mode import real_hours_from_env
 from skeleton.runtime.llm import build_llm_client
 from skeleton.runtime.manager import Manager
 from skeleton.runtime.pacing import settings_with_pacing
@@ -62,6 +67,7 @@ def create_warung_runtime(
     clock: Clock | None = None,
     interval: float | None = None,
     autostart: bool = True,
+    real_hours: bool = False,
 ) -> OfficeRuntime:
     """Open (or create) the database and return the office runtime for ``create_app``.
 
@@ -69,6 +75,8 @@ def create_warung_runtime(
     * ``interval``: heartbeat seconds, overrides the settings (at least 1).
     * ``autostart=False``: the app does not start the heartbeat or the tracker; tests
       drive ``runtime.ctx.heartbeat.tick()`` by hand.
+    * ``real_hours=False`` (default): demo hours. The simulated customers come at any hour and a
+      delivery takes 1 minute. ``True`` keeps the shop hours (07:00 to 21:00) and a 2-hour delivery.
 
     The database has no business yet: ``runtime.ctx`` is ``None`` and the API runs the
     onboarding. The database already has a Warung: ``runtime.ctx`` is built at once, with
@@ -99,7 +107,9 @@ def create_warung_runtime(
 
     def build_context(business_id: int) -> OfficeContext:
         bus = EventBus()
-        roles = WARUNG_TEMPLATE.build_roles(conn, business_id, clock)
+        roles = build_warung_roles(
+            conn, business_id, clock, real_hours=real_hours, interval_seconds=settings.heartbeat_seconds
+        )
         manager = Manager(conn, business_id, clock, build_llm_client(settings), settings, roles, bus)
         heartbeat = Heartbeat(conn, business_id, clock, manager, roles, settings, bus)
         tracker = VisualTracker(conn, business_id, bus, clock, heartbeat)
@@ -162,11 +172,23 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="longest think time in seconds, at most 60 (default: KANTOR_PACING_MAX, else 8)",
     )
     parser.add_argument(
+        "--real-hours",
+        action="store_true",
+        help="keep the shop hours (07:00 to 21:00) and a 2-hour delivery: the staff are idle at night "
+        "(default: demo hours; env KANTOR_REAL_HOURS=1)",
+    )
+    parser.add_argument(
         "--host",
         default=DEFAULT_HOST,
         help="address to listen on (default 127.0.0.1: this computer only)",
     )
     return parser.parse_args(argv)
+
+
+def _hours_note(real_hours: bool) -> str:
+    if real_hours:
+        return "Hours: real shop hours (07:00 to 21:00), 2-hour delivery."
+    return "Hours: demo (the simulated customers come at any hour). --real-hours keeps the shop hours."
 
 
 def _pacing_note(settings: Settings) -> str:
@@ -193,7 +215,8 @@ def main(argv: list[str] | None = None) -> None:
             settings = settings_with_pacing(
                 settings, enabled=settings.pacing_enabled, min=args.pace_min, max=args.pace_max
             )
-        runtime = create_warung_runtime(args.db, settings=settings, interval=args.interval)
+        real_hours = args.real_hours or real_hours_from_env()
+        runtime = create_warung_runtime(args.db, settings=settings, interval=args.interval, real_hours=real_hours)
     except (ValueError, sqlite3.Error) as exc:
         raise SystemExit(f"Cannot start Kantor Warung: {exc}") from None
     import uvicorn  # imported here so tests can import this module without starting a server
@@ -204,6 +227,7 @@ def main(argv: list[str] | None = None) -> None:
             "and change its settings: there is no login.",
             flush=True,
         )
+    print(_hours_note(real_hours), flush=True)
     print(_pacing_note(settings), flush=True)
     print(f"Kantor Warung: http://{args.host}:{args.port}/  (Ctrl+C to stop)", flush=True)
     uvicorn.run(create_app(runtime), host=args.host, port=args.port, log_level="warning")

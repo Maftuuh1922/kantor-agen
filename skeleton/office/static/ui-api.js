@@ -5,6 +5,7 @@
 // (fixed text or the server's short message, never markup).
 
 import { errorMessage } from "./ui-format.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -21,7 +22,7 @@ async function request(method, url, body) {
       cache: "no-store",
     });
   } catch (err) {
-    throw new Error(err?.name === "AbortError" ? "The server did not answer in time." : "Cannot reach the server.");
+    throw new Error(err?.name === "AbortError" ? TEXT.errors.timeout : TEXT.errors.unreachable);
   } finally {
     clearTimeout(timer);
   }
@@ -31,8 +32,8 @@ async function request(method, url, body) {
   } catch {
     /* no JSON body: handled below */
   }
-  if (!res.ok) throw new Error(errorMessage(data?.detail, `The server answered ${res.status}.`));
-  if (data === null) throw new Error("The server sent an unreadable answer.");
+  if (!res.ok) throw new Error(errorMessage(data?.detail, fmt(TEXT.errors.statusCode, { status: res.status })));
+  if (data === null) throw new Error(TEXT.errors.unreadable);
   return data;
 }
 
@@ -45,6 +46,8 @@ export function createApi() {
     getActivity: (limit = 5) => request("GET", `/api/activity?limit=${Math.max(1, Math.min(50, limit | 0))}`),
     pauseOffice: (paused) => request("POST", "/api/office/pause", { paused: !!paused }),
     pauseAgent: (id, paused) => request("POST", agentUrl(id, "/pause"), { paused: !!paused }),
+    // Rename an agent or change its role label (Requirement 1.4). `changes` is { name?, role? }.
+    patchAgent: (id, changes) => request("PATCH", agentUrl(id), changes),
     putPolicy: (policy) => request("PUT", "/api/policy", policy),
   };
 }

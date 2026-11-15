@@ -13,6 +13,9 @@ office. See ``apps/kantor-jasa/README.md``.
   only and never leaves it (Req 10.2).
 * Booking requests and payments come from the simulated feeds
   (``SimulatedBookingFeed``, ``SimulatedPaymentFeed``), so the demo has customers.
+* Demo hours: booking requests arrive at ANY hour, so the office is lively at night too.
+  ``--real-hours`` (or ``KANTOR_REAL_HOURS=1``) keeps the working hours (09:00 to 17:00 Jakarta time).
+  With a short ``--interval`` requests arrive about every 2 to 3 ticks (see ``roles.py``).
 * The server binds to 127.0.0.1 unless ``--host`` says otherwise.
 * The heartbeat interval comes from ``KANTOR_HEARTBEAT_SECONDS`` (default 300), or
   ``--interval``. The heartbeat starts when the owner has saved the spending rules.
@@ -36,7 +39,7 @@ import dataclasses
 import sqlite3
 
 from apps.kantor_jasa.schema import init_jasa_schema
-from apps.kantor_jasa.template import JASA_KEY, JASA_TEMPLATE
+from apps.kantor_jasa.template import JASA_KEY, JASA_TEMPLATE, build_jasa_roles
 from skeleton.core import db
 from skeleton.core.clock import Clock, SystemClock
 from skeleton.core.config import Settings, load_settings
@@ -47,6 +50,7 @@ from skeleton.office.context import OfficeContext, OfficeRuntime
 from skeleton.office.onboarding import TemplateRegistry, bootstrap, ensure_label_table
 from skeleton.office.visual import VisualTracker
 from skeleton.runtime.heartbeat import Heartbeat
+from skeleton.runtime.demo_mode import real_hours_from_env
 from skeleton.runtime.llm import build_llm_client
 from skeleton.runtime.manager import Manager
 from skeleton.runtime.pacing import settings_with_pacing
@@ -67,6 +71,7 @@ def create_jasa_runtime(
     clock: Clock | None = None,
     interval: float | None = None,
     autostart: bool = True,
+    real_hours: bool = False,
 ) -> OfficeRuntime:
     """Open (or create) the database and return the office runtime for ``create_app``.
 
@@ -74,6 +79,8 @@ def create_jasa_runtime(
     * ``interval``: heartbeat seconds, overrides the settings (at least 1).
     * ``autostart=False``: the app does not start the heartbeat or the tracker; tests
       drive ``runtime.ctx.heartbeat.tick()`` by hand.
+    * ``real_hours=False`` (default): demo hours. Simulated booking requests arrive at any hour.
+      ``True`` keeps the working hours (09:00 to 17:00).
 
     The database has no business yet: ``runtime.ctx`` is ``None`` and the API runs the
     onboarding. The database already has a Jasa office: ``runtime.ctx`` is built at once,
@@ -110,7 +117,9 @@ def create_jasa_runtime(
 
     def build_context(business_id: int) -> OfficeContext:
         bus = EventBus()
-        roles = JASA_TEMPLATE.build_roles(conn, business_id, clock)
+        roles = build_jasa_roles(
+            conn, business_id, clock, real_hours=real_hours, interval_seconds=settings.heartbeat_seconds
+        )
         manager = Manager(conn, business_id, clock, build_llm_client(settings), settings, roles, bus)
         heartbeat = Heartbeat(conn, business_id, clock, manager, roles, settings, bus)
         tracker = VisualTracker(conn, business_id, bus, clock, heartbeat)
@@ -173,11 +182,23 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="longest think time in seconds, at most 60 (default: KANTOR_PACING_MAX, else 8)",
     )
     parser.add_argument(
+        "--real-hours",
+        action="store_true",
+        help="keep the working hours (09:00 to 17:00) for new booking requests: the staff are idle at night "
+        "(default: demo hours; env KANTOR_REAL_HOURS=1)",
+    )
+    parser.add_argument(
         "--host",
         default=DEFAULT_HOST,
         help="address to listen on (default 127.0.0.1: this computer only)",
     )
     return parser.parse_args(argv)
+
+
+def _hours_note(real_hours: bool) -> str:
+    if real_hours:
+        return "Hours: real working hours (09:00 to 17:00) for new booking requests."
+    return "Hours: demo (booking requests arrive at any hour). --real-hours keeps the working hours."
 
 
 def _pacing_note(settings: Settings) -> str:
@@ -204,7 +225,8 @@ def main(argv: list[str] | None = None) -> None:
             settings = settings_with_pacing(
                 settings, enabled=settings.pacing_enabled, min=args.pace_min, max=args.pace_max
             )
-        runtime = create_jasa_runtime(args.db, settings=settings, interval=args.interval)
+        real_hours = args.real_hours or real_hours_from_env()
+        runtime = create_jasa_runtime(args.db, settings=settings, interval=args.interval, real_hours=real_hours)
     except (ValueError, sqlite3.Error) as exc:
         raise SystemExit(f"Cannot start Kantor Jasa: {exc}") from None
     import uvicorn  # imported here so tests can import this module without starting a server
@@ -215,6 +237,7 @@ def main(argv: list[str] | None = None) -> None:
             "and change its settings: there is no login.",
             flush=True,
         )
+    print(_hours_note(real_hours), flush=True)
     print(_pacing_note(settings), flush=True)
     print(f"Kantor Jasa: http://{args.host}:{args.port}/  (Ctrl+C to stop)", flush=True)
     uvicorn.run(create_app(runtime), host=args.host, port=args.port, log_level="warning")

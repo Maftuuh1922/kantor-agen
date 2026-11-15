@@ -7,6 +7,7 @@
 
 import * as THREE from "three";
 import { BUBBLE_MAX_CHARS, bubbleText, stateColor, stateDetail } from "./ui-format.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const HEAD_LIFT = 0.3;          // meters above the Head bone: the top of the head, plus a little air
 const SMOOTHING = 14;           // 1/s: how fast a tag follows the head (hides the bobbing of the walk cycle)
@@ -89,7 +90,7 @@ export function createOverlay({ container, office, controller, characters, agent
       && seen.activity === status.activity && seen.name === name && seen.role === info?.role) return seen.text;
     const color = status ? controller.markerFor(tag.id) ?? stateColor(status.state) : "grey";
     const text = bubbleText(status?.bubble_text);
-    const detail = status ? stateDetail(status.state, status.activity) : "Unknown";
+    const detail = status ? stateDetail(status.state, status.activity) : TEXT.states.unknown;
 
     if (name !== tag.name) {
       tag.name = name;
@@ -100,7 +101,12 @@ export function createOverlay({ container, office, controller, characters, agent
       tag.color = color;
       tag.marker.className = `marker marker-${color}`;
     }
-    const label = `${name}${info?.role ? `, ${info.role}` : ""}. ${detail}.${text ? ` ${text}` : ""} Open details`;
+    const label = fmt(TEXT.overlay.label, {
+      name,
+      role: info?.role ? `${TEXT.overlay.roleSeparator}${info.role}` : "",
+      detail,
+      bubble: text ? ` ${text}` : "",
+    });
     if (label !== tag.label) {
       tag.label = label;
       tag.button.setAttribute("aria-label", label);

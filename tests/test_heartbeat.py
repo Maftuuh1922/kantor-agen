@@ -335,7 +335,7 @@ def test_task_with_handoff_to_goes_through_manager_assign(conn):
     assert [r.status for r in results] == ["done"]
     assert len(receiver.runs) == 1 and receiver.runs[0].agent_id == 2
     actions = [(r["agent_id"], r["action"]) for r in reversed(recent(conn, 1, limit=10))]
-    assert actions == [(1, "handoff"), (2, "read")]
+    assert actions == [(1, "Serah tugas"), (2, "Periksa data")]  # labels, task 14.1
     types = []
     while sub._buffer:
         types.append(sub._buffer.popleft())
@@ -347,4 +347,4 @@ def test_invalid_handoff_to_is_ignored(conn, bad_target):
     results = asyncio.run(hb.tick())
     assert [r.status for r in results] == ["info"]  # agent 1's own role handled it
     assert receiver.runs == []
-    assert [r["action"] for r in recent(conn, 1, limit=10)] == ["read"]
+    assert [r["action"] for r in recent(conn, 1, limit=10)] == ["Periksa data"]

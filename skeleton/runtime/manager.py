@@ -26,7 +26,11 @@ Order of work inside ``handle``:
    ``Pacer.wait`` holds the task for a few seconds before step 1, while the heartbeat
    reports it as running. This is "think time" for the live apps, not compute: no extra
    model call is made. Off by default, see ``pacing.py`` and ``docs/pacing.md``.
-5. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
+5. The activity row's ``action`` is the task's friendly Indonesian label (``Task.label``,
+   else ``payload["label"]``, else a default for the kind, see ``models.action_label``), for
+   example "Catat penjualan". The task ``kind`` is still what the policy engine reads. A
+   rejected task logs a row that says what was rejected, how much and why (``_rejection_reason``).
+6. ``role.run`` is wrapped so no exception reaches the heartbeat. Every handled
    task writes an activity row. ``run`` may be a plain function or ``async def``;
    an awaitable result is awaited while the Manager lock is held.
 
@@ -48,17 +52,20 @@ from skeleton.core.clock import Clock
 from skeleton.core.config import Settings
 from skeleton.core.events import EventBus
 from skeleton.log.activity import record
-from skeleton.policy.engine import OUTCOME_QUEUED, authorize
+from skeleton.policy.engine import OUTCOME_QUEUED, Decision, authorize
 from skeleton.runtime.llm import LLMClient, LLMError
-from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task, TaskKind
+from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task, TaskKind, action_label
 from skeleton.runtime.pacing import Pacer
 
 logger = logging.getLogger(__name__)
 
-LLM_FAILURE_REASON = "LLM unavailable, continuing rule-only"
-OUTBOX_MESSAGE = "queued in outbox"
+LLM_FAILURE_REASON = "Model AI tidak tersedia, lanjut tanpa model"
+LLM_FAILURE_ACTION = "Model AI"
+OUTBOX_MESSAGE = "queued in outbox"  # the result message (the API contract)
+OUTBOX_NOTE = "masuk outbox, belum dikirim"  # what the activity row says (Indonesian)
 LLM_TEXT_KEY = "llm_text"
-HANDOFF_ACTION = "handoff"
+HANDOFF_ACTION = "Serah tugas"
+MAX_REASON_CHARS = 400
 BODY_KEY = "body"
 DEFAULT_BODY_TEMPLATE = "Pesan dari {name}: lihat detail di kantor."
 DEFAULT_SENDER_NAME = "agen"
@@ -67,6 +74,19 @@ SYSTEM_PROMPT = (
     "You help a small business owner in Indonesia. Reply in Bahasa Indonesia, "
     "short and clear, using only the facts given."
 )
+
+_REJECTION_WORDS = {
+    "blocked action type": "jenis aksi ini diblokir pemilik",
+    "policy not set": "aturan belanja belum diatur pemilik",
+    "policy invalid": "aturan belanja tidak valid",
+    "invalid cost": "biaya tidak valid",
+    "unknown action type": "jenis aksi tidak dikenal",
+}
+
+
+def _rupiah(amount: int) -> str:
+    return "Rp " + f"{amount:,}".replace(",", ".")
+
 
 # Kinds that must pass the policy engine before the role runs.
 _GATED_KINDS = frozenset({TaskKind.SPEND, TaskKind.CUSTOMER_MESSAGE})
@@ -136,13 +156,14 @@ class Manager:
                 return self._fail(
                     from_agent_id,
                     HANDOFF_ACTION,
-                    f"cannot hand off to unknown agent {to_agent_id}",
+                    f"tidak bisa menyerahkan tugas ke staf yang tidak dikenal (#{to_agent_id})",
                 )
             if to_agent_id != from_agent_id:
                 self._log(
                     from_agent_id,
                     HANDOFF_ACTION,
-                    f"agent {from_agent_id} handed task to agent {to_agent_id}: {task.reason}",
+                    f"{self._agent_name(from_agent_id)} menyerahkan tugas ke "
+                    f"{self._agent_name(to_agent_id)}: {task.reason}",
                     0,
                     "done",
                 )
@@ -164,14 +185,14 @@ class Manager:
         try:
             return await self._process(task, origin_agent_id)
         except Exception as exc:  # the heartbeat must never see an exception
-            return self._fail(task.agent_id, task.kind, self._describe(exc))
+            return self._fail(task.agent_id, action_label(task), self._describe(exc))
 
     async def _process(self, task: Task, origin_agent_id: int | None = None) -> ActionResult:
         role = self._roles.get(task.agent_id)
         if role is None:
-            return self._fail(task.agent_id, task.kind, f"no role for agent {task.agent_id}")
+            return self._fail(task.agent_id, action_label(task), f"no role for agent {task.agent_id}")
         if not isinstance(task.payload, dict):
-            return self._fail(task.agent_id, task.kind, "task payload must be a dict")
+            return self._fail(task.agent_id, action_label(task), "task payload must be a dict")
 
         await self._pace(task, role, origin_agent_id)
 
@@ -193,7 +214,7 @@ class Manager:
         if task.kind in _GATED_KINDS:
             decision = authorize(self._conn, self._business_id, task, self._clock)
             if not decision.allowed:
-                self._log(task.agent_id, task.kind, decision.reason, 0, "rejected")
+                self._log(task.agent_id, action_label(task), self._rejection_reason(task, decision), 0, "rejected")
                 return ActionResult(status="rejected", message=decision.reason)
             queued_in_outbox = decision.outcome == OUTCOME_QUEUED
         if model is not None and not model_called:
@@ -205,9 +226,9 @@ class Manager:
                 # The Manager lock is still held, so tasks stay strictly one at a time.
                 result = await result
         except Exception as exc:
-            return self._fail(task.agent_id, task.kind, f"role failed: {self._describe(exc)}")
+            return self._fail(task.agent_id, action_label(task), f"role failed: {self._describe(exc)}")
         if not isinstance(result, ActionResult):
-            return self._fail(task.agent_id, task.kind, "role returned an invalid result")
+            return self._fail(task.agent_id, action_label(task), "role returned an invalid result")
 
         return self._finish(task, result, queued_in_outbox)
 
@@ -240,7 +261,7 @@ class Manager:
         except LLMError:
             # The error text is dropped on purpose: only the fixed reason is logged.
             task.rule_only = True
-            self._log(task.agent_id, "llm", LLM_FAILURE_REASON, 0, "failed")
+            self._log(task.agent_id, LLM_FAILURE_ACTION, LLM_FAILURE_REASON, 0, "failed")
             return None
         task.payload[LLM_TEXT_KEY] = text
         return text
@@ -256,7 +277,7 @@ class Manager:
             result = ActionResult(
                 status="done", message=OUTBOX_MESSAGE, cost_idr=0, data=result.data
             )
-            reason = f"{task.reason} ({OUTBOX_MESSAGE})"
+            reason = f"{task.reason} ({OUTBOX_NOTE})"
         if result.status == "failed":
             reason = result.message or task.reason
         if result.status == "done" and task.kind == TaskKind.SPEND:
@@ -265,8 +286,52 @@ class Manager:
                 status="done", message=result.message, cost_idr=task.cost_idr, data=result.data
             )
         cost = result.cost_idr if result.status == "done" else 0
-        self._log(task.agent_id, task.kind, reason, cost, result.status)
+        self._log(task.agent_id, action_label(task), reason, cost, result.status)
         return result
+
+    # ------------------------------------------------------------------ #
+    # What the owner reads when something is rejected
+    # ------------------------------------------------------------------ #
+    def _why_rejected(self, decision: Decision) -> str:
+        """The policy's reason in Indonesian, with the daily limit when that is the reason."""
+        reason = decision.reason
+        if reason == "daily spending limit reached":
+            row = self._conn.execute(
+                "SELECT daily_limit_idr FROM policy WHERE business_id = ?", (self._business_id,)
+            ).fetchone()
+            if row is not None:
+                return f"batas harian {_rupiah(int(row[0]))} tercapai"
+            return "batas harian tercapai"
+        return _REJECTION_WORDS.get(reason, reason)
+
+    def _rejection_reason(self, task: Task, decision: Decision) -> str:
+        """For example ``Pesan stok Teh Botol Rp 232.500 ditolak: batas harian Rp 100.000 tercapai. <task reason>``.
+
+        Names the action, its subject (``payload["subject"]``) and the amount, says why, and ends with the
+        task's own reason. The text never contains the API key.
+        """
+        parts = [action_label(task)]
+        subject = task.payload.get("subject") if isinstance(task.payload, dict) else None
+        if isinstance(subject, str) and subject.strip():
+            parts.append(subject.strip())
+        if task.kind == TaskKind.SPEND and task.cost_idr > 0:
+            parts.append(_rupiah(task.cost_idr))
+        text = f"{' '.join(parts)} ditolak: {self._why_rejected(decision)}."
+        if task.reason.strip():
+            text += f" Tugas: {task.reason.strip()}"
+        key = self._settings.llm_api_key.strip()
+        if key:
+            text = text.replace(key, "***")
+        return text[:MAX_REASON_CHARS]
+
+    def _agent_name(self, agent_id: int) -> str:
+        try:
+            row = self._conn.execute(
+                "SELECT name FROM agent WHERE id = ? AND business_id = ?", (agent_id, self._business_id)
+            ).fetchone()
+        except sqlite3.Error:
+            row = None
+        return str(row[0]) if row is not None and row[0] else f"staf #{agent_id}"
 
     def _fail(self, agent_id: int | None, action: str, reason: str) -> ActionResult:
         reason = reason or "unknown error"

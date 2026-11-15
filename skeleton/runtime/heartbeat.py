@@ -35,7 +35,7 @@ from skeleton.core.config import Settings
 from skeleton.core.events import EventBus
 from skeleton.log.activity import record
 from skeleton.runtime.manager import Manager
-from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task
+from skeleton.runtime.models import ActionResult, BusinessContext, Role, Task, action_label, task_bubble
 from skeleton.runtime.pacing import HANDOFF_KEY  # defined in pacing.py; the demo imports it from here
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 STATE_WORKING = "working"
 STATE_IDLE = "idle"
 STATE_WAITING = "waiting"
-TRIGGER_ACTION = "triggers"
+TRIGGER_ACTION = "Cek pekerjaan"
 MAX_ERROR_CHARS = 300
 
 SleepFn = Callable[[float], Awaitable[None]]
@@ -96,7 +96,7 @@ class Heartbeat:
                 try:
                     tasks.extend(role.triggers(self._ctx))
                 except Exception as exc:
-                    self._log_failure(agent_id, TRIGGER_ACTION, f"triggers failed: {self._describe(exc)}")
+                    self._log_failure(agent_id, TRIGGER_ACTION, f"gagal memeriksa pekerjaan: {self._describe(exc)}")
 
             results: list[ActionResult] = []
             for task in tasks:
@@ -114,7 +114,8 @@ class Heartbeat:
         bubble = ""
         self.running[agent_id] = task
         try:
-            self._publish_state(agent_id, STATE_WORKING, task.reason)
+            # The role's short bubble text, else the reason (the front end cuts it at 60 characters).
+            self._publish_state(agent_id, STATE_WORKING, task_bubble(task))
             try:
                 target = self._handoff_target(task)
                 if target is None:
@@ -123,11 +124,11 @@ class Heartbeat:
                     # A handoff goes through assign so it reaches the log and the bus.
                     result = await self._manager.assign(task, target)
             except Exception as exc:  # the Manager should not raise, but never trust that
-                message = f"task failed: {self._describe(exc)}"
-                self._log_failure(agent_id, task.kind, message)
+                message = f"tugas gagal: {self._describe(exc)}"
+                self._log_failure(agent_id, action_label(task), message)
                 result = ActionResult(status="failed", message=message)
             if result.status == "pending":
-                state, bubble = STATE_WAITING, result.message
+                state, bubble = STATE_WAITING, result.bubble.strip() or result.message
             return result
         finally:
             self.running.pop(agent_id, None)

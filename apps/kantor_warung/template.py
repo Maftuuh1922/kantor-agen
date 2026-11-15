@@ -29,9 +29,23 @@ WARUNG_KEY = "warung"
 SUGGESTED_DAILY_LIMIT_IDR = 100_000
 
 
-def build_warung_roles(conn: sqlite3.Connection, business_id: int, clock: Clock) -> dict[int, Role]:
-    """Role instances for the Warung agents. The cashier gets the simulated walk-in customers."""
-    return build_roles(conn, business_id, clock, feed=SimulatedSalesFeed())
+def build_warung_roles(
+    conn: sqlite3.Connection,
+    business_id: int,
+    clock: Clock,
+    *,
+    real_hours: bool = False,
+    interval_seconds: float | None = None,
+) -> dict[int, Role]:
+    """Role instances for the Warung agents. The cashier gets the simulated walk-in customers.
+
+    By default (``real_hours=False``) this is the demo: the simulated customers come at any hour and a
+    delivery takes 1 minute instead of 2 hours. ``real_hours=True`` (``--real-hours``) keeps the shop
+    hours and the real delivery time. ``interval_seconds`` is the heartbeat interval: a short one
+    scales the simulated sales down so the stock does not run out in minutes (see ``roles.py``).
+    """
+    feed = SimulatedSalesFeed(demo_hours=not real_hours, interval_seconds=interval_seconds)
+    return build_roles(conn, business_id, clock, feed=feed, demo=not real_hours)
 
 
 WARUNG_TEMPLATE = BusinessTemplate(

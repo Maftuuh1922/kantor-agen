@@ -226,7 +226,7 @@ async def test_every_visual_state_is_produced_and_reported_consistently(ctx, cli
         body = await wait_state(client, budi, "handoff")
         snapshot = await sse_snapshot(client.app)
         assert snapshot[budi]["state"] == "handoff" and snapshot[budi]["target_agent_id"] == wati
-        assert body["bubble_text"] == "Handoff to Wati"
+        assert body["bubble_text"] == "Serah tugas ke Wati"
         states = await check_consistent(client, observed)
         assert states[budi] == "handoff" and states[sari] == "idle"
         gate.release()
@@ -255,11 +255,11 @@ async def test_every_visual_state_is_produced_and_reported_consistently(ctx, cli
     # Everything that happened is in the activity log with the right agents (Req 7.1).
     log = (await client.get("/api/activity?limit=100")).json()
     by_action = {(r["action"], r["agent_id"], r["status"]) for r in log}
-    assert ("read", sari, "done") in by_action
-    assert ("handoff", budi, "done") in by_action
-    assert ("read", wati, "done") in by_action  # the handed-over task, attributed to Wati
-    assert ("read", wati, "pending") in by_action  # Wati's own task, waiting for the owner
-    assert ("spend", joko, "done") in by_action
+    assert ("Periksa data", sari, "done") in by_action
+    assert ("Serah tugas", budi, "done") in by_action
+    assert ("Periksa data", wati, "done") in by_action  # the handed-over task, attributed to Wati
+    assert ("Periksa data", wati, "pending") in by_action  # Wati's own task, waiting for the owner
+    assert ("Belanja", joko, "done") in by_action
 
     # Pause one agent: paused, and no new task starts for her (Req 8.1, 3.2).
     response = await client.post(f"/api/agents/{sari}/pause", json={"paused": True})
@@ -316,10 +316,13 @@ async def test_spend_never_exceeds_the_limit_and_rejections_are_logged(ctx, clie
     assert 0 < spent <= DAILY_LIMIT_IDR
 
     log = (await client.get("/api/activity?limit=500")).json()
-    allowed = [r for r in log if r["action"] == "spend" and r["status"] == "done"]
-    rejected = [r for r in log if r["action"] == "spend" and r["status"] == "rejected"]
+    allowed = [r for r in log if r["action"] == "Belanja" and r["status"] == "done"]
+    rejected = [r for r in log if r["action"] == "Belanja" and r["status"] == "rejected"]
     assert allowed and rejected
-    assert all(r["reason"] == "daily spending limit reached" for r in rejected)
+    # task 14.1: a rejected spend says what, how much and why
+    assert all(
+        re.match(r"Belanja Rp [\d.]+ ditolak: batas harian Rp 100\.000 tercapai\. Tugas: ", r["reason"]) for r in rejected
+    )
     assert all(r["cost_idr"] == 0 for r in rejected)  # a rejection never costs anything
     # The log, the ledger and the office endpoint agree to the rupiah.
     assert sum(r["cost_idr"] for r in allowed) == spent
@@ -333,7 +336,7 @@ async def test_spend_never_exceeds_the_limit_and_rejections_are_logged(ctx, clie
     # The agent panel shows the same number for the spender.
     joko = await agent_view(client, ids["Joko"])
     assert joko["spent_today_idr"] == spent
-    assert joko["recent_actions"] and joko["recent_actions"][0]["action"] == "spend"
+    assert joko["recent_actions"] and joko["recent_actions"][0]["action"] == "Belanja"
 
 
 async def test_customer_message_waits_in_the_outbox_and_is_never_sent(ctx, client, gate, ids):
@@ -346,11 +349,11 @@ async def test_customer_message_waits_in_the_outbox_and_is_never_sent(ctx, clien
     assert message["channel"] == "whatsapp" and message["recipient"] == "Pelanggan Demo"
     assert "tagihan" in message["body"].lower()  # text from the fake LLM, in Indonesian
     log = (await client.get("/api/activity?limit=500")).json()
-    sent = [r for r in log if r["action"] == "customer_message"]
+    sent = [r for r in log if r["action"] == "Kirim pesan pelanggan"]
     assert [r["status"] for r in sent] == ["done"] and "outbox" in sent[0]["reason"]
     assert (await client.get("/api/summary")).json()["pending_outbox"] == 1
     # The draft task ran too, with the model text, and nothing else left the outbox.
-    assert any(r["action"] == "draft" and r["status"] == "done" for r in log)
+    assert any(r["action"] == "Tulis draf" and r["status"] == "done" for r in log)
 
 
 async def test_no_response_carries_a_secret(ctx, client, gate, ids):

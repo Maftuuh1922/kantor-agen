@@ -28,6 +28,22 @@ such a row (for example a manual one) counts as already old enough. "Done today"
 checks (summary, promo) read the activity log the same way. Because of this the
 activity log rows are part of the roles' behavior and must not be removed.
 
+Labels and bubbles
+------------------
+Each task carries a friendly Indonesian ``label`` (what the activity feed shows as the action,
+for example "Catat penjualan") and a short ``bubble`` text (30 to 45 characters, shown above the
+agent's head while it works). The policy engine still reads ``kind``. Because the activity log
+stores the label as ``action``, the "done today" checks look for the label and also for the old
+kind word, so a database written by an older version keeps working.
+
+Demo hours and volume
+---------------------
+``SimulatedSalesFeed(demo_hours=True)`` ignores the shop hours, so the demo is lively at night too
+(``--real-hours`` turns the hours back on). With a short heartbeat interval (``interval_seconds``)
+the feed sells ``DEMO_BOOST`` times faster than real time instead of ``300 / interval`` times, so a
+short interval does not drain the stock faster than the stock agent can restock. In demo mode the
+stock role also receives a delivery after ``DEMO_LEAD_TIME`` (1 minute) instead of 2 hours.
+
 Depends only on ``skeleton.*``; the skeleton never imports this module.
 """
 
@@ -44,6 +60,7 @@ from apps.kantor_warung.data import DataError, PurchaseError, StockError, Unknow
 from skeleton.core.clock import JAKARTA, Clock
 from skeleton.log.activity import record
 from skeleton.policy import remaining_today, spent_today
+from skeleton.runtime.demo_mode import demo_speed
 from skeleton.runtime.models import ActionResult, BaseRole, BusinessContext, Role, Task, TaskKind
 from skeleton.runtime.registry import RoleRegistry
 
@@ -55,18 +72,30 @@ ROLE_FINANCE = "finance"
 ROLE_MARKETING = "marketing"
 
 DEFAULT_LEAD_TIME = timedelta(hours=2)
+DEMO_LEAD_TIME = timedelta(minutes=1)  # demo mode: 2 hours of simulated time is about 1 minute of real time
 DEFAULT_FINANCE_HOUR = 17
 REORDER_TARGET_FACTOR = 3  # reorder enough to reach 3x min_qty
 HANDOFF_KEY = "handoff_to"
 PROMO_CHANNEL = "whatsapp"
 PROMO_RECIPIENT = "pelanggan setia"
 BUBBLE_MAX_CHARS = 60
+BUBBLE_TEXT_CHARS = 45  # short bubble texts of the roles
 
 # Activity rows used as "done" markers (see the module docstring).
-ACTION_PURCHASE_ORDER = "purchase_order"
+ACTION_PURCHASE_ORDER = "Catat pesanan"  # written by the stock role itself (older versions wrote "purchase_order")
+_OLD_PURCHASE_ORDER_ACTION = "purchase_order"
 SUMMARY_REASON = "Ringkasan harian"
 PROMO_IDEA_REASON = "Ide promo"
 PROMO_MESSAGE_REASON = "Promo pelanggan setia"
+
+# Friendly action words for the activity feed (Task.label).
+LABEL_SALE = "Catat penjualan"
+LABEL_REORDER = "Pesan stok"
+LABEL_REORDER_PENDING = "Ajukan pesanan stok"
+LABEL_RECEIVE = "Terima kiriman"
+LABEL_SUMMARY = "Ringkasan harian"
+LABEL_PROMO_IDEA = "Ide promo"
+LABEL_PROMO_MESSAGE = "Kirim promo"
 
 # Payload "action" values, used to route a task to its handler in ``run``.
 ACT_SALE = "sale"
@@ -88,6 +117,11 @@ def rupiah(amount: int) -> str:
 
 def _short(text: str, limit: int = BUBBLE_MAX_CHARS) -> str:
     return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+
+
+def _bubble(text: str) -> str:
+    """A short speech-bubble text (at most ``BUBBLE_TEXT_CHARS`` characters)."""
+    return _short(text, BUBBLE_TEXT_CHARS)
 
 
 def _is_int(value: Any) -> bool:
@@ -116,14 +150,19 @@ def _find_agent(ctx: BusinessContext, role_name: str, *, active_only: bool = Fal
 
 
 def _logged_today(
-    ctx: BusinessContext, agent_id: int, action: str, reason_prefix: str
+    ctx: BusinessContext, agent_id: int, actions: tuple[str, ...], reason_prefix: str
 ) -> bool:
-    """True when this agent already has a non-failed activity row today (Jakarta)."""
+    """True when this agent already has a non-failed activity row today (Jakarta).
+
+    ``actions`` are the words a row may carry: the task's label and, for rows written by an older
+    version, its kind.
+    """
     start, end = _day_bounds(ctx.clock.today())
+    marks = ",".join("?" for _ in actions)
     row = ctx.conn.execute(
-        "SELECT 1 FROM activity WHERE business_id = ? AND agent_id = ? AND action = ? "
+        f"SELECT 1 FROM activity WHERE business_id = ? AND agent_id = ? AND action IN ({marks}) "
         "AND reason LIKE ? AND status != 'failed' AND created_at >= ? AND created_at < ? LIMIT 1",
-        (ctx.business_id, agent_id, action, reason_prefix + "%", start, end),
+        (ctx.business_id, agent_id, *actions, reason_prefix + "%", start, end),
     ).fetchone()
     return row is not None
 
@@ -148,9 +187,9 @@ def _has_open_order(ctx: BusinessContext, product_id: int) -> bool:
 
 def _order_placed_at(ctx: BusinessContext, purchase_order_id: int) -> datetime | None:
     row = ctx.conn.execute(
-        "SELECT created_at FROM activity WHERE business_id = ? AND action = ? AND reason LIKE ? "
+        "SELECT created_at FROM activity WHERE business_id = ? AND action IN (?, ?) AND reason LIKE ? "
         "ORDER BY id LIMIT 1",
-        (ctx.business_id, ACTION_PURCHASE_ORDER, f"PO#{purchase_order_id} dipesan%"),
+        (ctx.business_id, ACTION_PURCHASE_ORDER, _OLD_PURCHASE_ORDER_ACTION, f"PO#{purchase_order_id} dipesan%"),
     ).fetchone()
     if row is None:
         return None
@@ -207,9 +246,15 @@ class SimulatedSalesFeed:
     each) built only from products in stock. The random generator is seeded from
     ``seed``, the Jakarta day, the hour and the 5-minute slot, so the same clock
     gives the same customers (reproducible), while different ticks differ (alive).
-    The shop is closed before ``OPEN_HOUR`` and from ``CLOSE_HOUR``. Volume is
+    The shop is closed before ``OPEN_HOUR`` and from ``CLOSE_HOUR``, unless ``demo_hours`` is set:
+    then the feed ignores the hours, so the demo is lively at any hour. Volume is
     lower on some weekdays (Tuesday to Thursday), so three declining days happen
     and the marketing trigger can fire. Polling reads the database and writes nothing.
+
+    ``interval_seconds`` is the heartbeat interval. At 300 s or more the feed sells at its normal
+    pace (one poll per 5-minute slot). A shorter interval polls the same slot many times, so the
+    chance of a sale per poll is scaled down (``demo_mode.demo_speed``, ``DEMO_BOOST`` times
+    faster than real time): about one sale per minute at most, whatever the interval.
     """
 
     OPEN_HOUR = 7
@@ -220,9 +265,14 @@ class SimulatedSalesFeed:
     PEAK_HOURS = frozenset({11, 12, 17, 18})
     # Monday=0 ... Sunday=6. Monday to Thursday decline, so those days can trigger marketing.
     DAY_WEIGHT = (1.0, 0.8, 0.6, 0.4, 0.9, 1.1, 1.0)
+    DEMO_BOOST = 6.0  # with a short interval the shop runs this many times faster than real time
 
-    def __init__(self, seed: int = 0) -> None:
+    def __init__(
+        self, seed: int = 0, *, demo_hours: bool = False, interval_seconds: float | None = None
+    ) -> None:
         self.seed = seed
+        self.demo_hours = demo_hours
+        self.interval_seconds = interval_seconds
         # Which 5-minute slot was polled last, and how many times. With a short heartbeat
         # (``--interval 10``) one slot is polled many times; each poll must be a new set of
         # customers, not the same basket again. The first poll of a slot (the only one with
@@ -232,14 +282,14 @@ class SimulatedSalesFeed:
 
     def poll(self, ctx: BusinessContext) -> list[dict]:
         local = ctx.clock.now().astimezone(JAKARTA)
-        if not self.OPEN_HOUR <= local.hour < self.CLOSE_HOUR:
+        if not self.demo_hours and not self.OPEN_HOUR <= local.hour < self.CLOSE_HOUR:
             return []
         slot = f"{self.seed}|{local.date().isoformat()}|{local.hour}|{local.minute // self.SLOT_MINUTES}"
         self._polls_in_slot = self._polls_in_slot + 1 if slot == self._slot else 0
         self._slot = slot
         rng = random.Random(slot if self._polls_in_slot == 0 else f"{slot}|{self._polls_in_slot}")
         weight = self.DAY_WEIGHT[local.weekday()] * (1.6 if local.hour in self.PEAK_HOURS else 1.0)
-        chance = min(0.9, self.BASE_CHANCE * weight)
+        chance = min(0.9, self.BASE_CHANCE * weight) * demo_speed(self.interval_seconds, self.DEMO_BOOST)
         count = sum(rng.random() < chance for _ in range(self.MAX_SALES))
 
         available = {p["id"]: p["qty"] for p in data.list_products(ctx.conn, ctx.business_id) if p["qty"] > 0}
@@ -294,6 +344,9 @@ class CashierRole(_WarungRole):
                     },
                     cost_idr=0,
                     reason=f"Catat penjualan: {_item_summary(items, names)}",
+                    label=LABEL_SALE,
+                    bubble=_bubble(f"Mencatat {names.get(items[0]['product_id'], 'penjualan')}"
+                                   + (f" +{len(items) - 1} lain" if len(items) > 1 else "")),
                 )
             )
         return tasks
@@ -383,6 +436,7 @@ def _execute_reorder(task: Task, ctx: BusinessContext) -> ActionResult:
         status="pending",
         message=_short(f"Menunggu pemilik: {name} {rupiah(cost)}, limit harian"),
         data={"purchase_order_id": po_id},
+        bubble=_bubble(f"Menunggu OK: {name}"),
     )
 
 
@@ -392,6 +446,7 @@ class StockRole(_WarungRole):
     name = ROLE_STOCK
 
     def __init__(self, agent_id: int | None = None, lead_time: timedelta = DEFAULT_LEAD_TIME) -> None:
+        # ``DEMO_LEAD_TIME`` in demo mode (see build_roles(demo=True)).
         super().__init__(agent_id)
         self.lead_time = lead_time
 
@@ -419,6 +474,8 @@ class StockRole(_WarungRole):
                     },
                     cost_idr=0,
                     reason=f"Terima kiriman: {order['qty']}x {order['name']}",
+                    label=LABEL_RECEIVE,
+                    bubble=_bubble(f"Menerima kiriman {order['name']}"),
                 )
             )
         return tasks
@@ -435,6 +492,7 @@ class StockRole(_WarungRole):
             cost = qty * product["unit_cost_idr"]
             payload = {
                 "action": ACT_REORDER,
+                "subject": product["name"],  # named in a rejection row ("Pesan stok Teh Botol Rp ... ditolak")
                 "product_id": product["id"],
                 "product_name": product["name"],
                 "qty": qty,
@@ -452,6 +510,8 @@ class StockRole(_WarungRole):
                         payload=payload,
                         cost_idr=cost,
                         reason=f"Stok menipis, {facts}: pesan {qty} pcs ({rupiah(cost)})",
+                        label=LABEL_REORDER,
+                        bubble=_bubble(f"Memesan {product['name']}"),
                     )
                 )
             else:
@@ -466,6 +526,8 @@ class StockRole(_WarungRole):
                             f"Stok menipis, {facts}: pesanan {rupiah(cost)} melebihi sisa limit "
                             f"harian {rupiah(budget)}, menunggu pemilik"
                         ),
+                        label=LABEL_REORDER_PENDING,
+                        bubble=_bubble(f"Mengajukan pesanan {product['name']}"),
                     )
                 )
         return tasks
@@ -511,7 +573,7 @@ class FinanceRole(_WarungRole):
         me = self._me(ctx)
         if me is None or ctx.clock.now().astimezone(JAKARTA).hour < self.summary_hour:
             return []
-        if _logged_today(ctx, me, TaskKind.DRAFT, SUMMARY_REASON):
+        if _logged_today(ctx, me, (LABEL_SUMMARY, TaskKind.DRAFT), SUMMARY_REASON):
             return []
         day = ctx.clock.today()
         start, end = _day_bounds(day)
@@ -534,6 +596,8 @@ class FinanceRole(_WarungRole):
                 payload=facts,
                 cost_idr=0,
                 reason=f"{SUMMARY_REASON} {day}",
+                label=LABEL_SUMMARY,
+                bubble="Menyusun ringkasan harian",
             )
         ]
 
@@ -606,7 +670,7 @@ class MarketingRole(_WarungRole):
             return []
         # Any customer_message row today counts, also a rejected one (its reason is the
         # policy's, not ours). Marketing sends nothing but promos, so this is one promo a day.
-        if _logged_today(ctx, me, TaskKind.CUSTOMER_MESSAGE, ""):
+        if _logged_today(ctx, me, (LABEL_PROMO_MESSAGE, TaskKind.CUSTOMER_MESSAGE), ""):
             return []
 
         facts = {"sales_by_day": totals}
@@ -625,6 +689,8 @@ class MarketingRole(_WarungRole):
                 payload={"action": ACT_PROMO_IDEA, **facts},
                 cost_idr=0,
                 reason=f"{PROMO_IDEA_REASON}: penjualan turun {self.DECLINE_DAYS} hari berturut-turut",
+                label=LABEL_PROMO_IDEA,
+                bubble="Memikirkan ide promo",
             ),
             Task(
                 agent_id=me,
@@ -632,6 +698,8 @@ class MarketingRole(_WarungRole):
                 payload=message_payload,
                 cost_idr=0,
                 reason=f"{PROMO_MESSAGE_REASON}: penjualan turun {self.DECLINE_DAYS} hari",
+                label=LABEL_PROMO_MESSAGE,
+                bubble="Menyiapkan pesan promo",
             ),
         ]
 
@@ -682,11 +750,13 @@ def build_roles(
     *,
     feed: SalesFeed | None = None,
     finance_hour: int = DEFAULT_FINANCE_HOUR,
+    demo: bool = False,
 ) -> dict[int, Role]:
     """Map each agent row of the business to a role instance, by its ``role`` column.
 
     Agents whose role is not a Warung role are skipped. ``feed`` goes to the
     cashier (``None`` means no sales source, so the cashier records nothing).
+    ``demo=True`` gives the stock role the short demo delivery time (``DEMO_LEAD_TIME``).
     ``clock`` is accepted for a uniform signature; roles read the clock from the
     context they are called with.
     """
@@ -701,6 +771,9 @@ def build_roles(
         role.agent_id = agent_id
         if isinstance(role, CashierRole):
             role.feed = feed
+        elif isinstance(role, StockRole):
+            if demo:
+                role.lead_time = DEMO_LEAD_TIME
         elif isinstance(role, FinanceRole):
             role.summary_hour = finance_hour
         roles[agent_id] = role

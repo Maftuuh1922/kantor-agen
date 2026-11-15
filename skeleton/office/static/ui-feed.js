@@ -2,6 +2,7 @@
 // Live data: GET /api/activity once, then `activity` events. Text only, set with textContent.
 
 import { actionStatusColor, actionStatusLabel, formatJakartaDateTime, formatJakartaTime, formatRupiah } from "./ui-format.js";
+import { TEXT } from "./ui-text.js";
 
 export const FEED_SIZE = 5;
 
@@ -36,7 +37,7 @@ export function createFeed({ root, api, agentInfo }) {
   function render() {
     const nodes = items.map((r) => {
       const color = actionStatusColor(r.status);
-      const who = r.agent_id == null ? "Office" : agentInfo?.(r.agent_id)?.name ?? "Agent";
+      const who = r.agent_id == null ? TEXT.feed.office : agentInfo?.(r.agent_id)?.name ?? TEXT.feed.agent;
       const li = el("li", `feed-item status-${color}`);
       const time = el("span", "feed-time", formatJakartaTime(r.created_at));
       const full = formatJakartaDateTime(r.created_at);
@@ -50,7 +51,7 @@ export function createFeed({ root, api, agentInfo }) {
       line.append(el("strong", null, who), document.createTextNode(` ${String(r.action ?? "")}`));
       text.append(line);
       if (r.reason) {
-        // The reason is what tells "Sari read" apart from the next "Sari read" (Requirement 7.1).
+        // The reason is what tells "Sari Catat penjualan" apart from the next one (Requirement 7.1).
         text.append(el("span", "feed-reason", String(r.reason)));
         text.title = String(r.reason);
       }

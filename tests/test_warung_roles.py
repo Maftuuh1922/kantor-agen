@@ -70,13 +70,15 @@ def clock():
     return FakeClock(datetime(2025, 1, 1, 3, 0, tzinfo=timezone.utc))
 
 
-def make_env(conn, clock, *, feed=None, finance_hour=17, llm=None):
+def make_env(conn, clock, *, feed=None, finance_hour=17, llm=None, demo=False):
     llm = llm or FakeLLMClient()
     settings = Settings(model_low="low", model_strong="strong")
-    roles = build_roles(conn, 1, clock, feed=feed, finance_hour=finance_hour)
+    roles = build_roles(conn, 1, clock, feed=feed, finance_hour=finance_hour, demo=demo)
     manager = Manager(conn, 1, clock, llm, settings, roles)
     heartbeat = Heartbeat(conn, 1, clock, manager, roles, settings)
-    return SimpleNamespace(roles=roles, llm=llm, heartbeat=heartbeat, ctx=BusinessContext(conn, 1, clock))
+    return SimpleNamespace(
+        roles=roles, llm=llm, heartbeat=heartbeat, manager=manager, ctx=BusinessContext(conn, 1, clock)
+    )
 
 
 def add(conn, name, qty, min_qty=0, price=3000, cost=2000):
@@ -171,7 +173,7 @@ async def test_stock_orders_once_hands_off_to_finance_and_books_spend_there(conn
         {"id": 1, "product_id": teh, "qty": 28, "cost_idr": 56_000, "status": "placed", "received_at": None}
     ]
     assert [(row["agent_id"], row["amount_idr"]) for row in ledger(conn)] == [(FINANCE, 56_000)]
-    handoffs = [row for row in log(conn) if row["action"] == "handoff"]
+    handoffs = [row for row in log(conn) if row["action"] == "Serah tugas"]
     assert len(handoffs) == 1 and handoffs[0]["agent_id"] == STOCK
     assert qty_of(conn, teh) == 2  # stock only grows on delivery
 
@@ -410,7 +412,7 @@ async def test_marketing_blocked_message_is_not_retried_all_day(conn, clock):
     clock.advance(300)
     results = await env.heartbeat.tick()
     assert results == [] and outbox(conn) == []
-    assert [r["status"] for r in log(conn) if r["action"] == "customer_message"] == ["rejected"]
+    assert [r["status"] for r in log(conn) if r["action"] == "Kirim promo"] == ["rejected"]
 
 
 async def test_marketing_template_body_is_used_when_requested(conn, clock):
@@ -565,9 +567,213 @@ async def test_three_day_simulation_stays_within_limit_and_stock_never_negative(
     assert any(o["status"] == "received" for o in orders(conn))  # restocked at least once
     assert not [row for row in log(conn) if row["status"] == "failed"]
     # one summary per day, and every spend was booked to the finance agent
-    summaries = [r for r in log(conn) if r["action"] == "draft" and r["reason"].startswith("Ringkasan harian")]
+    summaries = [r for r in log(conn) if r["action"] == "Ringkasan harian" and r["reason"].startswith("Ringkasan harian")]
     assert len(summaries) == 3
     assert {r[0] for r in conn.execute("SELECT DISTINCT agent_id FROM spend_ledger")} == {FINANCE}
     # no product is both on a placed order and ordered twice at once
     open_products = [o["product_id"] for o in orders(conn) if o["status"] in ("placed", "pending")]
     assert len(open_products) == len(set(open_products))
+
+
+# ----------------------------------------- demo hours, volume, lead time (task 14.1) --
+def _night_sales(feed, conn, clock, day=8, start_hour=0, hours=7):
+    """Sales a feed returns over ``hours`` hours from ``start_hour`` (Jakarta), polled every 5 minutes."""
+    ctx = BusinessContext(conn, 1, clock)
+    total = 0
+    for step in range(hours * 12):
+        clock.set(jakarta(2025, 1, day, start_hour, 0) + timedelta(minutes=5 * step))
+        total += len(feed.poll(ctx))
+    return total
+
+
+def test_demo_hours_feed_sells_at_night_and_the_default_feed_does_not(conn, clock):
+    add(conn, "Banyak", 100_000)
+    assert _night_sales(SimulatedSalesFeed(5), conn, clock) == 0  # hour-limited by default (07:00 to 21:00)
+    assert _night_sales(SimulatedSalesFeed(5, demo_hours=True), conn, clock) > 0
+    # still deterministic: the same seed and the same clock give the same customers
+    ctx = BusinessContext(conn, 1, clock)
+    a, b = SimulatedSalesFeed(5, demo_hours=True), SimulatedSalesFeed(5, demo_hours=True)
+    for step in range(60):
+        clock.set(jakarta(2025, 1, 8, 2, 0) + timedelta(seconds=8 * step))
+        assert a.poll(ctx) == b.poll(ctx)
+
+
+def test_demo_hours_also_work_in_the_middle_of_the_night_with_a_short_interval(conn, clock):
+    add(conn, "Banyak", 100_000)
+    ctx = BusinessContext(conn, 1, clock)
+    feed = SimulatedSalesFeed(2, demo_hours=True, interval_seconds=8)
+    sold = 0
+    for step in range(450):  # one hour at 3 a.m., a tick every 8 seconds
+        clock.set(jakarta(2025, 1, 8, 3, 0) + timedelta(seconds=8 * step))
+        sold += len(feed.poll(ctx))
+    assert sold > 0
+
+
+def _sales_per_hour(feed, conn, clock, step_seconds, hour=10, day=8):
+    ctx = BusinessContext(conn, 1, clock)
+    total = 0
+    for step in range(3600 // step_seconds):
+        clock.set(jakarta(2025, 1, day, hour, 0) + timedelta(seconds=step_seconds * step))
+        total += len(feed.poll(ctx))
+    return total
+
+
+def test_volume_scales_with_the_heartbeat_interval(conn, clock):
+    add(conn, "Banyak", 10**9)
+    unscaled = _sales_per_hour(SimulatedSalesFeed(4), conn, clock, 8)  # old behavior: 37x too many at 8 s
+    scaled = {i: _sales_per_hour(SimulatedSalesFeed(4, interval_seconds=i), conn, clock, i) for i in (8, 15, 30)}
+    # a short interval sells about as much per hour as any other short interval, not 300/interval times more
+    assert max(scaled.values()) <= 2 * min(scaled.values()) and min(scaled.values()) > 0
+    assert all(n < unscaled / 4 for n in scaled.values())
+    assert all(n <= 90 for n in scaled.values())  # at most about one and a half sales a minute
+
+
+def test_volume_at_300_seconds_or_more_is_the_normal_pace(conn, clock):
+    add(conn, "Banyak", 10**9)
+    ctx = BusinessContext(conn, 1, clock)
+    plain, scaled = SimulatedSalesFeed(9), SimulatedSalesFeed(9, interval_seconds=300)
+    for step in range(12 * 14):
+        clock.set(jakarta(2025, 1, 8, 7, 0) + timedelta(minutes=5 * step))
+        assert plain.poll(ctx) == scaled.poll(ctx)
+
+
+async def test_a_short_interval_does_not_sell_the_shop_out_in_fifteen_minutes(conn, clock):
+    ids = [add(conn, f"Produk {i}", 25, min_qty=5, cost=1000) for i in range(10)]  # 250 units
+    clock.set(jakarta(2025, 1, 8, 10, 0))
+    feed = SimulatedSalesFeed(7, demo_hours=True, interval_seconds=8)
+    env = make_env(conn, clock, feed=feed, demo=True)
+    for _ in range(15 * 60 // 8):  # 15 minutes at --interval 8
+        await env.heartbeat.tick()
+        clock.advance(8)
+    sold = conn.execute("SELECT COALESCE(SUM(qty), 0) FROM sale_item").fetchone()[0]
+    assert 0 < sold < 0.4 * 250
+    assert all(qty_of(conn, pid) > 0 for pid in ids)
+
+
+def test_demo_roles_get_the_short_delivery_time_and_real_hours_keep_two_hours(conn, clock):
+    from datetime import timedelta as td
+
+    from apps.kantor_warung.roles import DEFAULT_LEAD_TIME, DEMO_LEAD_TIME
+
+    assert DEMO_LEAD_TIME == td(minutes=1) and DEFAULT_LEAD_TIME == td(hours=2)
+    assert build_roles(conn, 1, clock, demo=True)[STOCK].lead_time == DEMO_LEAD_TIME
+    assert build_roles(conn, 1, clock)[STOCK].lead_time == DEFAULT_LEAD_TIME
+
+
+@pytest.mark.parametrize("demo, wait_seconds", [(True, 60), (False, 2 * 3600)])
+async def test_a_delivery_arrives_after_a_minute_in_demo_mode_and_after_two_hours_otherwise(
+    conn, clock, demo, wait_seconds
+):
+    teh = add(conn, "Teh Botol", 2, min_qty=10, cost=2000)
+    env = make_env(conn, clock, demo=demo)
+    await env.heartbeat.tick()  # places the order
+    assert [o["status"] for o in orders(conn)] == ["placed"]
+    clock.advance(wait_seconds - 1)
+    await env.heartbeat.tick()
+    assert [o["status"] for o in orders(conn)] == ["placed"], "not yet"
+    clock.advance(2)
+    await env.heartbeat.tick()
+    assert [o["status"] for o in orders(conn)] == ["received"], "delivered"
+    assert qty_of(conn, teh) > 2
+
+
+def test_the_real_hours_template_keeps_the_hours_and_the_default_template_is_the_demo(conn, clock):
+    from apps.kantor_warung.template import build_warung_roles
+
+    live = build_warung_roles(conn, 1, clock)[CASHIER].feed
+    assert live.demo_hours is True and live.interval_seconds is None
+    real = build_warung_roles(conn, 1, clock, real_hours=True, interval_seconds=10)
+    assert real[CASHIER].feed.demo_hours is False and real[CASHIER].feed.interval_seconds == 10
+    assert real[STOCK].lead_time == timedelta(hours=2)
+
+
+# ------------------------------------------------------ labels and bubbles --
+async def test_tasks_carry_friendly_labels_and_short_bubbles(conn, clock):
+    teh = add(conn, "Teh Botol", 2, min_qty=10, cost=2000)
+    gula = add(conn, "Gula Pasir 1 kg", 1, min_qty=10, cost=20_000)  # too big for the limit: pending
+    feed = ListFeed({"items": [{"product_id": teh, "qty": 1}]})
+    env = make_env(conn, clock, feed=feed)
+    seen = {}
+    for role in env.roles.values():
+        for task in role.triggers(env.ctx):
+            seen[task.payload["action"]] = task
+    assert seen["sale"].label == "Catat penjualan" and seen["sale"].bubble == "Mencatat Teh Botol"
+    assert seen["reorder"].label == "Pesan stok" and seen["reorder"].bubble == "Memesan Teh Botol"
+    assert seen["reorder_pending"].label == "Ajukan pesanan stok"
+    assert seen["reorder"].payload["subject"] == "Teh Botol"
+    for task in seen.values():
+        assert 0 < len(task.bubble) <= 45 and task.bubble != task.reason, task.payload["action"]
+    # the feed shows the label as the action
+    feed.queue = [{"items": [{"product_id": teh, "qty": 1}]}]  # the first poll above used the sale up
+    await env.heartbeat.tick()
+    actions = {r["action"] for r in log(conn)}
+    assert {"Catat penjualan", "Pesan stok", "Ajukan pesanan stok"} <= actions
+    assert gula and not actions & {"read", "spend", "draft", "customer_message"}
+
+
+async def test_running_task_bubble_is_the_short_text_and_a_waiting_agent_shows_a_short_one(conn, clock):
+    import asyncio
+
+    from skeleton.core.events import EventBus
+
+    add(conn, "Gula Pasir 1 kg", 1, min_qty=10, cost=20_000)  # pending: waits for the owner
+    bus = EventBus()
+    sub = bus.subscribe()
+    settings = Settings(model_low="low", model_strong="strong")
+    roles = build_roles(conn, 1, clock, feed=None)
+    manager = Manager(conn, 1, clock, FakeLLMClient(), settings, roles, bus)
+    await Heartbeat(conn, 1, clock, manager, roles, settings, bus).tick()
+    events = []
+    while True:
+        try:
+            events.append(await asyncio.wait_for(sub.get(), timeout=0.05))
+        except asyncio.TimeoutError:
+            break
+    bubbles = [(e["state"], e["bubble_text"]) for e in events if e["type"] == "agent_state" and e["agent_id"] == STOCK]
+    assert ("working", "Mengajukan pesanan Gula Pasir 1 kg") in bubbles
+    assert ("waiting", "Menunggu OK: Gula Pasir 1 kg") in bubbles
+    assert all(len(text) <= 45 for _state, text in bubbles)
+
+
+async def test_a_rejected_reorder_row_says_what_was_rejected(conn, clock):
+    add(conn, "Teh Botol", 2, min_qty=10, cost=2000)  # needs 28 -> Rp 56.000
+    env = make_env(conn, clock)
+    [task] = env.roles[STOCK].triggers(env.ctx)
+    set_policy(conn, 1, 1_000, [])  # the owner lowered the limit before the order was authorized
+    result = await env.manager.assign(task, FINANCE)
+    assert result.status == "rejected"
+    [row] = [r for r in log(conn) if r["status"] == "rejected"]
+    assert row["agent_id"] == FINANCE and row["action"] == "Pesan stok"
+    assert row["reason"] == (
+        "Pesan stok Teh Botol Rp 56.000 ditolak: batas harian Rp 1.000 tercapai. "
+        "Tugas: Stok menipis, Teh Botol tinggal 2 (min 10): pesan 28 pcs (Rp 56.000)"
+    )
+    assert not orders(conn)
+
+
+async def test_the_daily_summary_and_the_promo_are_done_once_a_day_by_their_labels(conn, clock):
+    clock.set(jakarta(2025, 1, 8, 18, 0))
+    env = make_env(conn, clock)
+    first = await env.heartbeat.tick()
+    assert [r for r in log(conn) if r["action"] == "Ringkasan harian"]
+    clock.advance(600)
+    await env.heartbeat.tick()
+    assert len([r for r in log(conn) if r["action"] == "Ringkasan harian"]) == 1  # not repeated
+    assert first
+
+
+async def test_the_order_marker_row_has_a_friendly_action_and_an_old_marker_still_counts(conn, clock):
+    teh = add(conn, "Teh Botol", 2, min_qty=10, cost=2000)
+    env = make_env(conn, clock, demo=True)
+    await env.heartbeat.tick()
+    [marker] = [r for r in log(conn) if r["reason"].startswith("PO#1 dipesan")]
+    assert marker["action"] == "Catat pesanan" and marker["status"] == "info"
+    # a row written by an older version ("purchase_order") is still the order time, so the delivery is not early
+    conn.execute("DROP TRIGGER IF EXISTS activity_no_update")
+    conn.execute("UPDATE activity SET action = 'purchase_order' WHERE id = ?", (marker["id"],))
+    clock.advance(30)
+    await env.heartbeat.tick()
+    assert [o["status"] for o in orders(conn)] == ["placed"] and qty_of(conn, teh) == 2
+    clock.advance(40)
+    await env.heartbeat.tick()
+    assert [o["status"] for o in orders(conn)] == ["received"]

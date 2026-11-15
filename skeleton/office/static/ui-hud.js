@@ -2,6 +2,7 @@
 // the "Paused" badge and the "Demo mode" badge. Data comes from GET /api/office.
 
 import { spendRatio, spendSummary } from "./ui-format.js";
+import { TEXT, fmt } from "./ui-text.js";
 
 const MESSAGE_MS = 6000;
 const REFRESH_DEBOUNCE_MS = 400;
@@ -44,13 +45,13 @@ export function createHud({ api, onOffice, onPauseChanged }) {
     const ratio = spendRatio(office.spent_today_idr, limit);
     spendEl.classList.toggle("near-limit", ratio >= 0.8 && ratio < 1);
     spendEl.classList.toggle("at-limit", ratio >= 1);
-    spendEl.title = limit == null ? "Spent today. The daily limit is not set yet." : "Spent today / daily spending limit";
+    spendEl.title = limit == null ? TEXT.hud.spendTitleNoLimit : TEXT.hud.spendTitle;
     pausedBadge.hidden = !paused;
     demoBadge.hidden = !office.demo_mode;
     pauseBtn.disabled = busy;
-    pauseBtn.textContent = paused ? "Resume" : "Pause";
-    pauseBtn.setAttribute("aria-label", paused ? "Resume all agents" : "Pause all agents");
-    pauseBtn.title = paused ? "Let agents start new work again" : "Stop agents from starting new work";
+    pauseBtn.textContent = paused ? TEXT.hud.resume : TEXT.hud.pause;
+    pauseBtn.setAttribute("aria-label", paused ? TEXT.hud.resumeAll : TEXT.hud.pauseAll);
+    pauseBtn.title = paused ? TEXT.hud.resumeTitle : TEXT.hud.pauseTitle;
     pauseBtn.classList.toggle("is-paused", paused);
     document.body.classList.toggle("office-paused", paused);
   }
@@ -69,7 +70,7 @@ export function createHud({ api, onOffice, onPauseChanged }) {
       apply(data);
       return data;
     } catch (err) {
-      showMessage(`Could not refresh the office. ${err.message}`);
+      showMessage(fmt(TEXT.hud.refreshFailed, { error: err.message }));
       return office;
     } finally {
       refreshing = false;
@@ -93,7 +94,7 @@ export function createHud({ api, onOffice, onPauseChanged }) {
       office = { ...office, business: { ...office.business, paused: !!res.paused } };
       onPauseChanged?.(!!res.paused);
     } catch (err) {
-      showMessage(`Could not ${want ? "pause" : "resume"} the office. ${err.message}`);
+      showMessage(fmt(want ? TEXT.hud.pauseFailed : TEXT.hud.resumeFailed, { error: err.message }));
     } finally {
       busy = false;
       render();
