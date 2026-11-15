@@ -18,6 +18,7 @@ from skeleton.core.clock import JAKARTA, Clock, SystemClock
 from skeleton.core.db import transaction
 
 PURCHASE_OPEN_STATUSES = frozenset({"placed", "pending"})
+# Order life: pending -> placed -> received, or pending -> cancelled (the owner said no).
 
 
 class DataError(ValueError):
@@ -246,6 +247,57 @@ def place_purchase_order(
             (product_id, qty, cost_idr, status),
         )
         return int(cur.lastrowid)
+
+
+def get_purchase_order(conn: sqlite3.Connection, business_id: int, purchase_order_id: int) -> dict | None:
+    """One purchase order of this business with its product name, or ``None``."""
+    if not _is_int(purchase_order_id):
+        return None
+    row = conn.execute(
+        "SELECT po.id, po.product_id, po.qty, po.cost_idr, po.status, po.received_at, p.name AS product_name "
+        "FROM purchase_order po JOIN product p ON p.id = po.product_id "
+        "WHERE po.id = ? AND p.business_id = ?",
+        (purchase_order_id, business_id),
+    ).fetchone()
+    return {key: row[key] for key in row.keys()} if row else None
+
+
+def _move_pending_order(
+    conn: sqlite3.Connection, business_id: int, purchase_order_id: int, new_status: str
+) -> dict:
+    """Move a ``pending`` order to ``placed`` or ``cancelled``. Any other status raises and changes nothing."""
+    with transaction(conn):
+        order = get_purchase_order(conn, business_id, purchase_order_id)
+        if order is None:
+            raise PurchaseError(f"purchase order {purchase_order_id} not found in this business")
+        if order["status"] != "pending":
+            raise PurchaseError(
+                f"purchase order {purchase_order_id} is {order['status']!r}, only 'pending' can become {new_status!r}"
+            )
+        cur = conn.execute(
+            "UPDATE purchase_order SET status = ? WHERE id = ? AND status = 'pending'",
+            (new_status, purchase_order_id),
+        )
+        if cur.rowcount != 1:  # defensive
+            raise PurchaseError(f"purchase order {purchase_order_id} could not be changed")
+        return {**order, "status": new_status}
+
+
+def place_pending_order(conn: sqlite3.Connection, business_id: int, purchase_order_id: int) -> dict:
+    """The owner approved a ``pending`` order: it becomes ``placed`` (and is received later by the stock agent).
+
+    The caller pays for it first, through the policy engine (see ``apps/kantor_warung/approvals.py``). Stock does
+    not change here. Returns the order. Raises :class:`PurchaseError` unless the order is ``pending``.
+    """
+    return _move_pending_order(conn, business_id, purchase_order_id, "placed")
+
+
+def cancel_pending_order(conn: sqlite3.Connection, business_id: int, purchase_order_id: int) -> dict:
+    """The owner rejected a ``pending`` order: it becomes ``cancelled`` and no longer counts as an open order.
+
+    Raises :class:`PurchaseError` unless the order is ``pending``.
+    """
+    return _move_pending_order(conn, business_id, purchase_order_id, "cancelled")
 
 
 def receive_purchase(

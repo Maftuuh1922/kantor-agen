@@ -38,6 +38,7 @@ import argparse
 import dataclasses
 import sqlite3
 
+from apps.kantor_jasa.approvals import build_approval_handlers
 from apps.kantor_jasa.schema import init_jasa_schema
 from apps.kantor_jasa.template import JASA_KEY, JASA_TEMPLATE, build_jasa_roles
 from skeleton.core import db
@@ -133,6 +134,7 @@ def create_jasa_runtime(
             tracker=tracker,
             manager=manager,
             autostart=autostart,
+            approval_handlers=build_approval_handlers(),
         )
 
     def create_business(name: str, business_type: str) -> OfficeContext:

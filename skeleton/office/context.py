@@ -22,6 +22,7 @@ from skeleton.core.config import Settings
 from skeleton.core.events import EventBus
 
 from skeleton.office.onboarding import TemplateRegistry
+from skeleton.policy.approvals import ApprovalHandlers
 
 if TYPE_CHECKING:  # avoid importing the runtime and tracker just for types
     from skeleton.office.visual import VisualTracker
@@ -42,6 +43,9 @@ class OfficeContext:
     # True: the app lifespan starts and stops the heartbeat and the tracker.
     # Tests set this to False and drive them by hand.
     autostart: bool = True
+    # What the owner's approve/reject does for each kind of request (task 14.2). The app registers its own;
+    # empty means a request of any kind answers "cannot be decided here".
+    approval_handlers: ApprovalHandlers = field(default_factory=ApprovalHandlers, repr=False)
 
 
 BootstrapCallback = Callable[[str, str], OfficeContext]

@@ -1,5 +1,6 @@
 // Top bar: business name, spending today against the daily limit, the global Pause / Resume button,
 // the "Paused" badge and the "Demo mode" badge. Data comes from GET /api/office.
+// The approvals badge ("Menunggu keputusan (N)") is drawn by ui-approvals.js; this file only hands it the count.
 
 import { spendRatio, spendSummary } from "./ui-format.js";
 import { TEXT, fmt } from "./ui-text.js";
@@ -12,8 +13,9 @@ const REFRESH_EVERY_MS = 30000;
  * @param opts.api       ui-api.js or ui-mock.js object
  * @param opts.onOffice  (officeData) => void, called every time /api/office was applied (agents, pause flags)
  * @param opts.onPauseChanged  (paused: boolean) => void, after the owner paused or resumed the office
+ * @param opts.onPendingCount  (count: number) => void, the number of requests that wait for the owner (`pending_approvals`)
  */
-export function createHud({ api, onOffice, onPauseChanged }) {
+export function createHud({ api, onOffice, onPauseChanged, onPendingCount }) {
   const $ = (id) => document.getElementById(id);
   const nameEl = $("business-name");
   const spendEl = $("spend-info");
@@ -59,6 +61,7 @@ export function createHud({ api, onOffice, onPauseChanged }) {
   function apply(data) {
     office = data;
     render();
+    if (Number.isSafeInteger(data?.pending_approvals)) onPendingCount?.(data.pending_approvals);
     onOffice?.(data);
   }
 
@@ -113,7 +116,11 @@ export function createHud({ api, onOffice, onPauseChanged }) {
     get office() { return office; },
     /** The policy was saved: show the new limit at once. */
     setPolicy(policy) {
-      if (office) apply({ ...office, policy });
+      // Not apply(): the count of pending requests in `office` may be older than the one the queue already knows.
+      if (!office) return;
+      office = { ...office, policy };
+      render();
+      onOffice?.(office);
     },
   };
 }

@@ -19,8 +19,11 @@ Who does what
 * **Billing** creates one draft invoice per ``done`` booking at the catalogue
   price. An amount at or below the owner-set limit
   (``auto_approve_limit_idr``, default Rp 500.000) is approved by ``policy``.
-  A larger one stays ``draft`` and the task result is ``pending`` (the owner
-  decides, the office shows the amber marker). A pluggable
+  A larger one stays ``draft``, the task result is ``pending`` (the office shows the
+  amber marker) and billing files an approval request of kind ``invoice`` (task 14.2, see
+  ``approvals.py``). The owner approves it in the approval queue (``approved_by='owner'``) or
+  rejects it (the invoice is voided). A draft without a request, for example one made before
+  that task, gets its request on the next tick. A pluggable
   :class:`PaymentFeed` reports payments; the role marks those invoices paid.
   Billing only moves invoices through ``approve_invoice`` and ``mark_paid``. It
   never edits an approved invoice (the database triggers forbid it anyway).
@@ -83,6 +86,8 @@ from typing import Any, NamedTuple, Protocol, runtime_checkable
 from apps.kantor_jasa import data
 from apps.kantor_jasa.schema import MAX_DURATION_MIN
 from skeleton.core.clock import JAKARTA, Clock
+from skeleton.core.db import transaction
+from skeleton.policy.approvals import has_pending, request_approval, withdraw_pending
 from skeleton.runtime.demo_mode import REAL_INTERVAL_SECONDS
 from skeleton.runtime.manager import DEFAULT_BODY_TEMPLATE, DEFAULT_SENDER_NAME
 from skeleton.runtime.models import ActionResult, BaseRole, BusinessContext, Role, Task, TaskKind
@@ -125,6 +130,8 @@ ACT_CONFIRM = "confirm"
 ACT_COMPLETE = "complete"
 ACT_INVOICE = "invoice"
 ACT_APPROVE = "approve"
+ACT_REQUEST_APPROVAL = "request_approval"  # a large draft that has no request for the owner yet (older data)
+KIND_INVOICE = "invoice"  # the kind of approval request a large draft invoice files (task 14.2)
 ACT_PAYMENT = "payment"
 ACT_THANKS = "thank_you"
 ACT_REMINDER = "payment_reminder"
@@ -209,6 +216,11 @@ def _find_agent(ctx: BusinessContext, role_name: str) -> int | None:
 
 def _booking_end(booking: dict) -> datetime:
     return datetime.fromisoformat(booking["starts_at"]) + timedelta(minutes=booking["duration_min"])
+
+
+def invoice_ref(invoice_id: int) -> str:
+    """The key of an approval request about an invoice: one open request per invoice."""
+    return f"invoice:{invoice_id}"
 
 
 def _customer_name(ctx: BusinessContext, customer_id: int) -> str:
@@ -827,7 +839,30 @@ class BillingRole(_JasaRole):
         """Drafts of bookings that fit the limit but are still draft (a crash, or a raised limit)."""
         tasks = []
         for invoice in data.list_invoices(ctx.conn, ctx.business_id, status="draft"):
-            if invoice["booking_id"] is None or invoice["amount_idr"] > self.auto_approve_limit_idr:
+            if invoice["booking_id"] is None:
+                continue
+            if invoice["amount_idr"] > self.auto_approve_limit_idr:
+                # Above the limit the owner decides. A draft the owner has not been asked about yet (made before
+                # task 14.2, or a request that was lost) gets its request now.
+                if not has_pending(ctx.conn, ctx.business_id, KIND_INVOICE, invoice_ref(invoice["id"])):
+                    tasks.append(
+                        Task(
+                            agent_id=me,
+                            kind=TaskKind.READ,
+                            payload={
+                                "action": ACT_APPROVE,
+                                "invoice_id": invoice["id"],
+                                "auto_approve_limit_idr": self.auto_approve_limit_idr,
+                            },
+                            cost_idr=0,
+                            reason=(
+                                f"Invoice #{invoice['id']} {rupiah(invoice['amount_idr'])} di atas limit, "
+                                "menunggu pemilik"
+                            ),
+                            label=LABEL_APPROVE,
+                            bubble=_bubble(f"Invoice #{invoice['id']} menunggu OK pemilik"),
+                        )
+                    )
                 continue
             tasks.append(
                 Task(
@@ -899,14 +934,16 @@ class BillingRole(_JasaRole):
         ).fetchone()
         if existing is not None:
             return ActionResult(status="info", message=_short(f"Invoice #{existing[0]} sudah ada"))
-        try:
-            invoice_id = data.create_invoice(
-                ctx.conn, ctx.business_id, booking["customer_id"], booking["service"], amount,
-                booking_id, ctx.clock,
-            )
-        except data.JasaError as exc:
-            return ActionResult(status="failed", message=_short(f"Gagal buat invoice: {exc}"))
-        return self._decide(ctx, invoice_id, amount, self._limit(task))
+        # The draft and the owner's request are written together: no large draft without a request.
+        with transaction(ctx.conn):
+            try:
+                invoice_id = data.create_invoice(
+                    ctx.conn, ctx.business_id, booking["customer_id"], booking["service"], amount,
+                    booking_id, ctx.clock,
+                )
+            except data.JasaError as exc:
+                return ActionResult(status="failed", message=_short(f"Gagal buat invoice: {exc}"))
+            return self._decide(ctx, task, invoice_id, amount, self._limit(task))
 
     def _approve(self, task: Task, ctx: BusinessContext) -> ActionResult:
         invoice_id = task.payload.get("invoice_id")
@@ -915,12 +952,31 @@ class BillingRole(_JasaRole):
             return ActionResult(status="failed", message="Gagal: invoice tidak ditemukan")
         if invoice["status"] != "draft":
             return ActionResult(status="info", message=_short(f"Invoice #{invoice_id} sudah diproses"))
-        return self._decide(ctx, invoice_id, invoice["amount_idr"], self._limit(task))
+        return self._decide(ctx, task, invoice_id, invoice["amount_idr"], self._limit(task))
 
     @staticmethod
-    def _decide(ctx: BusinessContext, invoice_id: int, amount: int, limit: int) -> ActionResult:
-        """Approve by policy at or below the limit, otherwise leave the draft for the owner."""
+    def _decide(ctx: BusinessContext, task: Task, invoice_id: int, amount: int, limit: int) -> ActionResult:
+        """Approve by policy at or below the limit, otherwise leave the draft and ask the owner."""
         if amount > limit:
+            invoice = data.get_invoice(ctx.conn, ctx.business_id, invoice_id) or {}
+            customer = _customer_name(ctx, invoice["customer_id"]) if "customer_id" in invoice else ""
+            request_approval(
+                ctx.conn,
+                ctx.business_id,
+                task.agent_id,
+                KIND_INVOICE,
+                f"Invoice #{invoice_id}" + (f" {customer}" if customer else ""),
+                {
+                    "invoice_id": invoice_id,
+                    "booking_id": invoice.get("booking_id"),
+                    "summary": f"{invoice.get('description', 'Invoice')}, di atas limit otomatis {rupiah(limit)}",
+                    "reason": task.reason,
+                },
+                amount,
+                ctx.clock,
+                ref=invoice_ref(invoice_id),
+                bus=ctx.bus,
+            )
             return ActionResult(
                 status="pending",
                 message=_short(f"Invoice #{invoice_id} {rupiah(amount)} menunggu pemilik"),
@@ -931,6 +987,11 @@ class BillingRole(_JasaRole):
             data.approve_invoice(ctx.conn, ctx.business_id, invoice_id, "policy", ctx.clock)
         except data.JasaError as exc:
             return ActionResult(status="failed", message=_short(f"Gagal setujui invoice: {exc}"))
+        # The limit was raised after the owner was asked: the question is moot, so it leaves the queue.
+        withdraw_pending(
+            ctx.conn, ctx.business_id, KIND_INVOICE, invoice_ref(invoice_id), ctx.clock,
+            "Disetujui otomatis setelah limit dinaikkan", bus=ctx.bus,
+        )
         return ActionResult(
             status="done",
             message=_short(f"Invoice #{invoice_id} {rupiah(amount)} disetujui"),

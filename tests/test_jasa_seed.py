@@ -229,7 +229,12 @@ def test_the_first_triggers_react_to_the_seed_without_writing(seeded, clock):
     before = [dict(r) for r in conn.execute("SELECT * FROM invoice")]
     tasks = {role.name: role.triggers(ctx) for role in roles.values()}
     assert [t.payload["action"] for t in tasks["booking"]] == ["confirm", "confirm"]
-    assert [(t.payload["action"], t.payload["amount_idr"]) for t in tasks["billing"]] == [("invoice", 650_000)]
+    # One new invoice for the finished booking, and one request to the owner (task 14.2) for the large draft that
+    # the seed left without a request. Neither writes anything yet.
+    billing = {t.payload["action"]: t.payload for t in tasks["billing"]}
+    assert sorted(billing) == ["approve", "invoice"]
+    assert billing["invoice"]["amount_idr"] == 650_000
+    assert [r["status"] for r in conn.execute("SELECT status FROM invoice WHERE id = ?", (billing["approve"]["invoice_id"],))] == ["draft"]
     kinds = sorted(t.payload["action"] for t in tasks["followup"])
     assert kinds == ["payment_reminder", "payment_reminder", "thank_you", "thank_you"]  # 2 overdue, 2 done yesterday
     assert before == [dict(r) for r in conn.execute("SELECT * FROM invoice")]

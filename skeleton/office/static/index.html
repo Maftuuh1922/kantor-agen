@@ -33,6 +33,8 @@
     </div>
     <div class="hud-right">
       <span id="paused-badge" class="badge badge-paused" role="status" hidden>Dijeda</span>
+      <!-- The owner's approval queue (ui-approvals.js): muted at 0, amber when something waits. -->
+      <button id="approvals-btn" type="button" class="hud-btn approvals-badge" data-state="none" aria-expanded="false" aria-controls="approvals-panel" title="Buka antrian persetujuan"><span class="approvals-dot" aria-hidden="true"></span><span id="approvals-btn-text">Menunggu keputusan (0)</span></button>
       <button id="rules-btn" type="button" class="hud-btn" title="Ubah batas belanja harian dan aksi yang diblokir">Aturan</button>
       <button id="pause-btn" type="button" class="hud-btn hud-btn-pause" disabled aria-label="Jeda semua staf">Jeda</button>
       <button id="quality-btn" type="button" class="hud-btn" aria-pressed="false" title="Ganti antara kualitas normal dan rendah">Kualitas: Normal</button>
@@ -47,6 +49,10 @@
     <button id="quality-hint-no" type="button" class="hud-btn" aria-label="Tutup saran">Nanti saja</button>
   </div>
   <aside id="side-panel" class="side-panel" hidden aria-label="Panel staf"></aside>
+  <!-- Requests that wait for the owner: Setujui / Tolak (ui-approvals.js fills it). -->
+  <aside id="approvals-panel" class="side-panel approvals-panel" hidden aria-label="Antrian persetujuan"></aside>
+  <!-- Announces new requests to screen readers. -->
+  <p id="approvals-live" class="sr-only" role="status" aria-live="polite"></p>
 
   <aside id="activity-feed" class="activity-feed" aria-label="Aktivitas terbaru">
     <button id="feed-toggle" type="button" class="feed-toggle" aria-expanded="true" aria-controls="feed-list">

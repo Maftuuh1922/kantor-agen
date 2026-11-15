@@ -13,6 +13,8 @@ Open <http://127.0.0.1:8000/>.
   AI staff, loads demo data (12 products and a week of sales), and then asks for the
   daily spending limit and the actions to block. The staff start working after you
   save the spending rules. Nothing can be spent before that.
+* **Approval queue:** an order the staff may not place by themselves (over the spending limit) waits for you. The amber
+  button "Menunggu keputusan (N)" in the top bar opens "Antrian persetujuan", where you press Setujui or Tolak.
 * **Next runs:** the same command opens the office straight away. Your data is in
   `kantor-warung.db` in the folder you started from.
 * **No API key needed:** without `KANTOR_LLM_API_KEY` the AI text comes from an offline

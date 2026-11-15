@@ -14,7 +14,7 @@ const MAX_TEXT_CHARS = 300;
 const MAX_TYPES = 12;
 const MAX_STAFF = 12;
 const REQUEST_TIMEOUT_MS = 20000;
-const BACKGROUND_IDS = ["office-canvas", "overlay", "hud", "side-panel", "activity-feed", "policy-modal"];
+const BACKGROUND_IDS = ["office-canvas", "overlay", "hud", "side-panel", "approvals-panel", "activity-feed", "policy-modal"];
 
 // ---- pure helpers -----------------------------------------------------------------------------
 

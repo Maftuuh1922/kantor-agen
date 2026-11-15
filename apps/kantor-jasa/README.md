@@ -20,6 +20,8 @@ it next to Kantor Warung.)
   next free slot. Agus drafts an invoice for each finished service and approves it when it
   is at most Rp 500.000; a larger one waits for you. Rina queues thank-you messages and
   payment reminders in the outbox. Nothing is sent: messages stay pending.
+* **Approval queue:** a large invoice waits for you. The amber button "Menunggu keputusan (N)" in the top bar opens
+  "Antrian persetujuan", where you press Setujui or Tolak.
 * **Next runs:** the same command opens the office straight away. Your data is in
   `kantor-jasa.db` in the folder you started from.
 * **No API key needed:** without `KANTOR_LLM_API_KEY` the AI text comes from an offline

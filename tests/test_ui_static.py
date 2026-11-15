@@ -11,7 +11,7 @@ import pytest
 STATIC = Path(__file__).resolve().parent.parent / "skeleton" / "office" / "static"
 UI_MODULES = [
     "ui-text.js", "ui-format.js", "ui-api.js", "ui-mock.js", "ui-overlay.js", "ui-panel.js",
-    "ui-hud.js", "ui-policy.js", "ui-feed.js", "ui-onboarding.js",
+    "ui-hud.js", "ui-policy.js", "ui-feed.js", "ui-onboarding.js", "ui-approvals.js", "ui-approvals-logic.js",
 ]
 JS_FILES = [*UI_MODULES, "main.js"]
 
@@ -52,7 +52,9 @@ def test_ui_code_never_writes_html_from_strings(rel):
         assert not re.search(banned, code), f"{rel} uses {banned}"
 
 
-@pytest.mark.parametrize("rel", ["ui-hud.js", "ui-panel.js", "ui-policy.js", "ui-feed.js", "ui-overlay.js", "ui-onboarding.js"])
+@pytest.mark.parametrize(
+    "rel", ["ui-hud.js", "ui-panel.js", "ui-policy.js", "ui-feed.js", "ui-overlay.js", "ui-onboarding.js", "ui-approvals.js"]
+)
 def test_server_text_goes_in_with_text_content(rel):
     code = read(rel)
     assert "textContent" in code or "createTextNode" in code, f"{rel} sets no text"
@@ -70,6 +72,8 @@ def test_index_has_the_ui_elements():
         # policy dialog
         "policy-modal", "policy-form", "policy-limit", "policy-limit-preview", "policy-limit-error",
         "policy-blocked", "policy-blocked-error", "policy-error", "policy-submit",
+        # the owner's approval queue (task 14.2)
+        "approvals-btn", "approvals-btn-text", "approvals-panel", "approvals-live",
         # first-run screen (task 10.5)
         "onboarding", "onboarding-title", "onboarding-form", "onboarding-name", "onboarding-name-help",
         "onboarding-name-error", "onboarding-types", "onboarding-type-error", "onboarding-preview-title",
@@ -271,3 +275,91 @@ def test_the_loading_and_fatal_messages_come_from_the_dictionary():
         code = strip_js_comments(read(rel))
         assert '"Loading' not in code and "`Loading" not in code and '"Ready"' not in code, rel
         assert "ui-text.js" in code, rel
+
+
+# ---- task 14.2: the owner's approval queue ----------------------------------------------------------------
+def test_approvals_files_are_wired_into_the_page():
+    main, hud, panel, policy = read("main.js"), read("ui-hud.js"), read("ui-panel.js"), read("ui-policy.js")
+    assert '"./ui-approvals.js"' in main and "createApprovals(" in main
+    # the event stream, the mock and the first load all reach the queue
+    assert '"approval_changed"' in main and "kantor:approval" in main and "approvals.handleEvent(" in main
+    assert "approvals.reload()" in main and "approvals.setCount(" in main and "approvals.rulesSaved()" in main
+    assert "pending_approvals" in hud and "onPendingCount" in hud
+    # the agent panel lists that agent's requests with the same component
+    assert "approvals?.mountList(" in panel and "approvals," in main
+    # the policy dialog makes the queue inert while it is open, and "Buka Aturan" opens that dialog
+    assert '"approvals-panel"' in policy
+    assert "policyDialog.show(" in main and "openRules" in read("ui-approvals.js")
+
+
+def test_approvals_endpoints_match_the_backend():
+    api = read("ui-api.js")
+    assert '"/api/approvals"' in api and "/decision" in api and '"POST"' in api
+    assert "getApprovals" in api and "decideApproval" in api
+    assert "approve: approve === true" in api, "approve is always a real boolean"
+    # the same names in the mock backend (?mock=1)
+    mock = read("ui-mock.js")
+    assert "async getApprovals()" in mock and "async decideApproval(" in mock and "pending_approvals" in mock
+
+
+def test_approvals_words_live_in_the_dictionary_only():
+    code = strip_js_comments(read("ui-approvals.js")) + strip_js_comments(read("ui-approvals-logic.js"))
+    for phrase in ("Setujui", "Tolak", "Menunggu", "Antrian", "Buka Aturan", "Server sibuk", "Tidak ada yang"):
+        assert phrase not in code, f"{phrase!r} belongs in ui-text.js"
+    text = read("ui-text.js")
+    for phrase in ("Menunggu keputusan ({count})", "Antrian persetujuan", "Tidak ada yang menunggu keputusan", "Buka Aturan",
+                   "Setujui", "Tolak", "Server sibuk, coba lagi"):
+        assert f'"{phrase}"' in text, phrase
+
+
+def test_approvals_logic_is_pure():
+    code = strip_js_comments(read("ui-approvals-logic.js"))
+    for name in ("document", "window", "navigator", "fetch(", "localStorage", "setTimeout", "setInterval", "Date.now"):
+        assert name not in code, f"ui-approvals-logic.js uses {name}"
+    imports = [i.strip() for i in re.findall(r"^\s*import\b[^;]*;", code, re.M)]
+    assert all(re.search(r'from "\./ui-(format|text)\.js"', i) for i in imports), imports
+
+
+def test_approvals_ui_is_keyboard_and_screen_reader_friendly():
+    js = read("ui-approvals.js")
+    assert 'e.key !== "Escape"' in js and ".focus(" in js, "Escape closes the queue and focus is managed"
+    assert "badge.focus(" in js, "closing returns the focus to the badge"
+    assert "heading.focus(" in js and "heading.tabIndex = -1" in js, "opening moves the focus into the panel"
+    assert 'setAttribute("role", "status")' in js and 'setAttribute("role", "alert")' in js
+    assert "aria-expanded" in js and "aria-busy" in js and "aria-label" in js
+    assert "approveBtn.disabled" in js and "rejectBtn.disabled" in js, "both buttons are disabled while a decision is sent"
+    assert "modal-open" in js, "Escape is left to an open dialog"
+    html = read("index.html")
+    assert re.search(r'<button id="approvals-btn"[^>]*aria-controls="approvals-panel"', html)
+    assert 'id="approvals-live"' in html and 'role="status"' in html
+    assert '<html lang="id">' in html
+
+
+def test_approvals_css_badge_states_and_phone_layout():
+    css = read("style.css")
+    assert '.approvals-badge[data-state="none"]' in css and '.approvals-badge[data-state="pending"]' in css
+    assert ".approvals-panel" in css and ".approval-item" in css and ".approval-btn" in css and ".sr-only" in css
+    assert re.search(r"\.approvals-wrap \[hidden\]\s*\{\s*display:\s*none", css), "[hidden] must win over display: flex"
+    section = css[css.index("Task 14.2: the owner's approval queue"):]
+    assert "prefers-reduced-motion" in section and "max-width: 700px" in section
+    assert "pointer-events" not in section, "the approval styles must not change which elements take a click"
+    assert re.search(r"min-height:\s*40px", section), "buttons are big enough for a thumb"
+
+
+def test_bubbles_and_labels_keep_their_pointer_events_after_the_queue_was_added():
+    css = read("style.css")
+    assert re.search(r"\n\.bubble\s*\{[^}]*pointer-events:\s*none", css)
+    assert re.search(r"\.agent-label\s*\{[^}]*pointer-events:\s*auto", css, re.S)
+    assert re.search(r"\.overlay\s*\{[^}]*pointer-events:\s*none", css, re.S)
+    # the amber marker and the bubble come from the backend state: the queue does not touch them
+    js = strip_js_comments(read("ui-approvals.js"))
+    for name in ("applyVisualState", "marker-amber", "bubble", "controller"):
+        assert name not in js, f"ui-approvals.js must not drive {name}"
+
+
+def test_the_item_never_puts_server_text_into_markup():
+    code = strip_js_comments(read("ui-approvals.js"))
+    assert "textContent" in code
+    assert "createTextNode(" in code and code.count("createTextNode(") == 1, "only the fixed separator is a text node"
+    for banned in (r"\.innerHTML\b", r"insertAdjacentHTML", r"\.outerHTML\b", r"\beval\s*\("):
+        assert not re.search(banned, code), banned

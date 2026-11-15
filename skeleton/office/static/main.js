@@ -23,6 +23,7 @@ import { createOverlay } from "./ui-overlay.js";
 import { createPanel } from "./ui-panel.js";
 import { createHud } from "./ui-hud.js";
 import { createPolicyDialog } from "./ui-policy.js";
+import { createApprovals } from "./ui-approvals.js";
 import { createOnboarding, createOnboardingApi, createMockOnboardingApi } from "./ui-onboarding.js";
 import { createFeed } from "./ui-feed.js";
 import { startPerfProbe, createSlowFrameMonitor } from "./perf.js";
@@ -64,7 +65,7 @@ export function reconnectDelay(attempt) {
 
 // Server-Sent Events with our own reconnect (exponential backoff, capped at 5 s).
 // The server sends a fresh `snapshot` on every connection, so nothing is replayed here.
-function connectEvents({ onSnapshot, onVisualState, onActivity, onStatus }) {
+function connectEvents({ onSnapshot, onVisualState, onActivity, onApproval, onStatus }) {
   let source = null;
   let attempt = 0;
   let timer = null;
@@ -90,6 +91,7 @@ function connectEvents({ onSnapshot, onVisualState, onActivity, onStatus }) {
     source.addEventListener("snapshot", parse(onSnapshot));
     source.addEventListener("visual_state", parse(onVisualState));
     source.addEventListener("activity", parse(onActivity));
+    source.addEventListener("approval_changed", parse(onApproval));
     source.addEventListener("error", () => {
       source?.close();     // the browser would retry on its own (3 s); we use our backoff instead
       source = null;
@@ -281,10 +283,24 @@ async function main() {
 
   // ---- UI layer: top bar, policy dialog, agent panel, bubbles, feed (ui-*.js) ----
   const lookup = (id) => agentInfo.get(String(id));
+  const isNarrow = () => !!window.matchMedia?.("(max-width: 700px)").matches;
   const hud = createHud({
     api,
     onOffice: (d) => { applyOffice(d); panel.sync(); activityFeed.render(); },
     onPauseChanged: () => panel.sync(),
+    onPendingCount: (n) => approvals.setCount(n),
+  });
+  // The owner's approval queue (task 14.2): the badge in the top bar, the queue panel, and the same list in the agent panel.
+  // The decision is always the owner's: every answer of the backend is turned into a message inside the request.
+  const approvals = createApprovals({
+    api,
+    openRules: () => {
+      if (policyDialog.isOpen) return;
+      const policy = hud.office?.policy;
+      policyDialog.show(policy?.is_set ? policy : undefined);
+    },
+    onDecided: () => hud.refreshSoon(),       // the spending today changed
+    onOpen: () => { if (isNarrow() && panel.isOpen()) panel.close({ restoreFocus: false }); }, // small screens: one panel at a time
   });
   const overlay = createOverlay({
     container: document.getElementById("overlay"),
@@ -293,7 +309,11 @@ async function main() {
     characters,
     agentInfo: lookup,
     topBar: document.getElementById("hud"),
-    onSelect: (id) => { panel.open(id); overlay.setSelected(id); },
+    onSelect: (id) => {
+      if (isNarrow() && approvals.isOpen()) approvals.close({ restoreFocus: false });
+      panel.open(id);
+      overlay.setSelected(id);
+    },
   });
   const panel = createPanel({
     root: document.getElementById("side-panel"),
@@ -306,6 +326,7 @@ async function main() {
       if (restoreFocus) overlay.focusLabel(id);
     },
     onPauseChanged: () => hud.refresh(),
+    approvals,
     // After "Ubah nama": the label, the feed and the panel follow at once from the PATCH answer, then /api/office is
     // reloaded so everything agrees with the server.
     onRenamed: (agent) => {
@@ -317,11 +338,19 @@ async function main() {
     },
   });
   const activityFeed = createFeed({ root: document.getElementById("activity-feed"), api, agentInfo: lookup });
-  const policyDialog = createPolicyDialog({ api, onSaved: (policy) => hud.setPolicy(policy) });
+  const policyDialog = createPolicyDialog({
+    api,
+    onSaved: (policy) => {
+      hud.setPolicy(policy);
+      approvals.rulesSaved(); // a request that the old limit refused can be approved again
+    },
+  });
   // Requirement 8.2: the owner can change the limit later. The new limit applies to the next action.
   document.getElementById("rules-btn")?.addEventListener("click", () => {
     if (!policyDialog.isOpen && hud.office?.policy?.is_set) policyDialog.show(hud.office.policy);
   });
+  // `approval_changed` from the stream (or the mock backend): reload the queue and the count.
+  window.addEventListener("kantor:approval", (e) => approvals.handleEvent(e.detail));
   window.addEventListener("kantor:activity", (e) => {
     activityFeed.push(e.detail);
     panel.handleActivity(e.detail);
@@ -331,6 +360,7 @@ async function main() {
   perf?.mark("agentsCreated");
   hud.apply(data);
   activityFeed.load();
+  approvals.reload();
   const needsPolicy = data.policy?.is_set === false; // Requirement 1.3: ask before anything can spend
 
   // A snapshot that names an agent we do not know means the office changed: reload /api/office once.
@@ -368,6 +398,7 @@ async function main() {
     if (status === "open") {
       clearTimeout(staleTimer);
       staleTimer = null;
+      approvals.reload(); // events may have been missed while the stream was down
     } else if (!staleTimer) {
       staleTimer = setTimeout(() => {
         for (const id of controller.agentIds()) {
@@ -390,6 +421,7 @@ async function main() {
       onVisualState,
       // The feed, the agent panel and the top bar listen for this.
       onActivity: (a) => window.dispatchEvent(new CustomEvent("kantor:activity", { detail: a })),
+      onApproval: (a) => window.dispatchEvent(new CustomEvent("kantor:approval", { detail: a })),
       onStatus: onConnection,
     });
   }
@@ -449,7 +481,7 @@ async function main() {
   // `step` lets tests fast-forward the simulation without rendering.
   window.kantor = {
     office, controller, characters, assets, data, feed, mock: MOCK, step,
-    ui: { api, hud, overlay, panel, feed: activityFeed, policy: policyDialog },
+    ui: { api, hud, overlay, panel, feed: activityFeed, policy: policyDialog, approvals },
   };
   office.start();
   office.ready.then(() => {

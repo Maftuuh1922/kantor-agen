@@ -32,8 +32,9 @@ function el(tag, className, text) {
  * @param opts.onClose      (id) => void, after the panel closed (return focus here)
  * @param opts.onPauseChanged  () => void, after a pause or resume succeeded
  * @param opts.onRenamed    (agent) => void, after the agent was renamed (reload /api/office so every label follows)
+ * @param opts.approvals    ui-approvals.js object: this agent's requests that wait for the owner are listed with Setujui / Tolak
  */
-export function createPanel({ root, api, controller, agentInfo, isOfficePaused, onClose, onPauseChanged, onRenamed }) {
+export function createPanel({ root, api, controller, agentInfo, isOfficePaused, onClose, onPauseChanged, onRenamed, approvals }) {
   // ---- structure (built once) ----
   const nameEl = el("h2", "panel-name");
   nameEl.tabIndex = -1;
@@ -122,7 +123,14 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
   listEl.setAttribute("aria-label", TEXT.panel.recentLabel);
   const emptyEl = el("p", "panel-empty");
 
-  root.replaceChildren(head, renameBtn, renameForm, stateRow, bubbleEl, facts, pauseBtn, officeNote, errorEl, listTitle, listEl, emptyEl);
+  // Requests of this agent that wait for the owner (task 14.2): the same list as the queue, filtered on this agent.
+  const approvalsBox = el("div", "panel-approvals");
+  const approvalList = approvals?.mountList(approvalsBox, {
+    title: TEXT.approvals.agentTitle,
+    focusFallback: () => nameEl.focus({ preventScroll: true }),
+  });
+
+  root.replaceChildren(head, renameBtn, renameForm, stateRow, bubbleEl, approvalsBox, facts, pauseBtn, officeNote, errorEl, listTitle, listEl, emptyEl);
 
   // ---- state ----
   let openId = null;
@@ -243,6 +251,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
       showError("");
     }
     root.hidden = false;
+    approvalList?.show(id);
     renderStatic();
     renderLive();
     clearInterval(timer);
@@ -262,6 +271,7 @@ export function createPanel({ root, api, controller, agentInfo, isOfficePaused, 
     clearTimeout(activityTimer);
     timer = null;
     root.hidden = true;
+    approvalList?.hide();
     onClose?.(id, restoreFocus && hadFocus);
   }
 

@@ -96,13 +96,15 @@ test("the static labels of index.html match the dictionary", () => {
     TEXT.policy.title, TEXT.policy.intro, TEXT.policy.limitLabel, TEXT.policy.blockedLabel, TEXT.policy.blockedHelp,
     TEXT.policy.cancel, TEXT.policy.saveAndStart, TEXT.loading.label, TEXT.fatal.noScript,
     TEXT.office.canvas, TEXT.office.overlay,
+    // the owner's approval queue (task 14.2): the badge at zero, its tooltip, and the panel's label
+    fmt(TEXT.approvals.badge, { count: 0 }), TEXT.approvals.badgeTitle, TEXT.approvals.panelTitle,
   ];
   for (const text of mustContain) assert.ok(html.includes(text), `index.html does not contain: ${text}`);
 });
 
 // ---- the modules take their words from the dictionary ---------------------------------------------
 test("no ui module keeps an English sentence for the owner", () => {
-  const files = ["ui-hud.js", "ui-panel.js", "ui-feed.js", "ui-overlay.js", "ui-policy.js", "ui-api.js", "ui-format.js", "main.js"];
+  const files = ["ui-hud.js", "ui-panel.js", "ui-feed.js", "ui-overlay.js", "ui-policy.js", "ui-api.js", "ui-format.js", "ui-approvals.js", "ui-approvals-logic.js", "main.js"];
   const english = /["'`](?:Pause|Resume|Rules|Save|Cancel|Loading|Today|Quality|Idle|Working|Paused|Waiting|Done|Failed|Rejected|Pending|Activity|Could not|Cannot|The server|Close agent|Recent actions|No actions|Agent panel|Spending today)\b[^"'`]*["'`]/;
   for (const file of files) {
     const code = readFileSync(path.join(STATIC, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");

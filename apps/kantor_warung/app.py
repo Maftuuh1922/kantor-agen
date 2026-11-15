@@ -35,6 +35,7 @@ import argparse
 import dataclasses
 import sqlite3
 
+from apps.kantor_warung.approvals import build_approval_handlers
 from apps.kantor_warung.template import WARUNG_KEY, WARUNG_TEMPLATE, build_warung_roles
 from skeleton.core import db
 from skeleton.core.clock import Clock, SystemClock
@@ -123,6 +124,7 @@ def create_warung_runtime(
             tracker=tracker,
             manager=manager,
             autostart=autostart,
+            approval_handlers=build_approval_handlers(),
         )
 
     def create_business(name: str, business_type: str) -> OfficeContext:

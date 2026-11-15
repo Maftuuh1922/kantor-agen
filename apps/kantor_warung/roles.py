@@ -12,8 +12,11 @@ Who does what
 * **Stock** reorders products below their minimum (Req 6.3). When the order fits
   the remaining daily limit it emits a ``spend`` task handed to the finance
   agent (so the spend is booked to finance). When it does not fit, it records a
-  ``pending`` purchase order for the owner. Placed orders are received after a
-  simulated lead time.
+  ``pending`` purchase order and files an approval request for the owner (task 14.2,
+  kind ``purchase_order``, see ``approvals.py``): the owner approves it in the approval queue
+  (the spend then goes through the policy engine, so it still must fit the daily limit) or
+  rejects it (the order is ``cancelled`` and the product is not asked about again for 24
+  hours). Placed orders are received after a simulated lead time.
 * **Finance** writes one daily summary after a configurable hour and executes
   the purchase spends handed over by the stock agent.
 * **Marketing** reacts to three strictly declining sales days with one promo
@@ -58,13 +61,17 @@ from typing import Any, Protocol, runtime_checkable
 from apps.kantor_warung import data
 from apps.kantor_warung.data import DataError, PurchaseError, StockError, UnknownProductError
 from skeleton.core.clock import JAKARTA, Clock
+from skeleton.core.db import transaction
 from skeleton.log.activity import record
-from skeleton.policy import remaining_today, spent_today
+from skeleton.policy import remaining_today, rejected_recently, request_approval, spent_today
+from skeleton.policy.approvals import has_pending
 from skeleton.runtime.demo_mode import demo_speed
 from skeleton.runtime.models import ActionResult, BaseRole, BusinessContext, Role, Task, TaskKind
 from skeleton.runtime.registry import RoleRegistry
 
 logger = logging.getLogger(__name__)
+
+KIND_PURCHASE_ORDER = "purchase_order"  # the kind of approval request a pending purchase order files (task 14.2)
 
 ROLE_CASHIER = "cashier"
 ROLE_STOCK = "stock"
@@ -101,6 +108,7 @@ LABEL_PROMO_MESSAGE = "Kirim promo"
 ACT_SALE = "sale"
 ACT_REORDER = "reorder"
 ACT_REORDER_PENDING = "reorder_pending"
+ACT_REQUEST_APPROVAL = "request_approval"  # a pending order that has no request for the owner yet (older data)
 ACT_RECEIVE = "receive"
 ACT_SUMMARY = "daily_summary"
 ACT_PROMO_IDEA = "promo_idea"
@@ -113,6 +121,36 @@ ACT_PROMO_BROADCAST = "promo_broadcast"
 def rupiah(amount: int) -> str:
     """Format integer rupiah the Indonesian way: ``Rp 54.000``."""
     return "Rp " + f"{amount:,}".replace(",", ".")
+
+
+def product_ref(product_id: int) -> str:
+    """The key of an approval request about a product: one open request per product, one cool-down per product."""
+    return f"product:{product_id}"
+
+
+def _file_request(
+    ctx: BusinessContext, agent_id: int, product: dict, po_id: int, qty: int, cost: int, reason: str
+) -> int:
+    """Ask the owner about a pending purchase order. Idempotent per product (see ``request_approval``)."""
+    name = product["name"]
+    return request_approval(
+        ctx.conn,
+        ctx.business_id,
+        agent_id,
+        KIND_PURCHASE_ORDER,
+        f"Pesan stok {name}",
+        {
+            "purchase_order_id": po_id,
+            "product_id": product["id"],
+            "qty": qty,
+            "summary": f"{qty} pcs {name}; stok tinggal {product['qty']} (min {product['min_qty']})",
+            "reason": reason,
+        },
+        cost,
+        ctx.clock,
+        ref=product_ref(product["id"]),
+        bus=ctx.bus,
+    )
 
 
 def _short(text: str, limit: int = BUBBLE_MAX_CHARS) -> str:
@@ -431,12 +469,33 @@ def _execute_reorder(task: Task, ctx: BusinessContext) -> ActionResult:
         )
 
     cost = payload.get("cost_idr", qty * product["unit_cost_idr"])
-    po_id = data.place_purchase_order(ctx.conn, ctx.business_id, product_id, qty, cost, "pending")
+    # The pending order and the owner's request are written together: no order without a request.
+    with transaction(ctx.conn):
+        po_id = data.place_purchase_order(ctx.conn, ctx.business_id, product_id, qty, cost, "pending")
+        _file_request(ctx, task.agent_id, product, po_id, qty, cost, task.reason)
     return ActionResult(
         status="pending",
         message=_short(f"Menunggu pemilik: {name} {rupiah(cost)}, limit harian"),
         data={"purchase_order_id": po_id},
         bubble=_bubble(f"Menunggu OK: {name}"),
+    )
+
+
+def _request_for_pending_order(task: Task, ctx: BusinessContext) -> ActionResult:
+    """Ask the owner about a ``pending`` order that has no request yet (an order made before task 14.2)."""
+    po_id = task.payload.get("purchase_order_id")
+    order = data.get_purchase_order(ctx.conn, ctx.business_id, po_id) if _is_int(po_id) else None
+    if order is None or order["status"] != "pending":
+        return ActionResult(status="info", message="Pesanan sudah diproses")
+    product = data.get_product(ctx.conn, ctx.business_id, order["product_id"])
+    if product is None:
+        return ActionResult(status="failed", message="Gagal: produk tidak dikenal")
+    _file_request(ctx, task.agent_id, product, order["id"], order["qty"], order["cost_idr"], task.reason)
+    return ActionResult(
+        status="pending",
+        message=_short(f"Menunggu pemilik: {product['name']} {rupiah(order['cost_idr'])}"),
+        data={"purchase_order_id": order["id"]},
+        bubble=_bubble(f"Menunggu OK: {product['name']}"),
     )
 
 
@@ -454,7 +513,26 @@ class StockRole(_WarungRole):
         me = self._me(ctx)
         if me is None:
             return []
-        return self._deliveries(ctx, me) + self._reorders(ctx, me)
+        return self._deliveries(ctx, me) + self._unrequested(ctx, me) + self._reorders(ctx, me)
+
+    def _unrequested(self, ctx: BusinessContext, me: int) -> list[Task]:
+        """Pending orders the owner has not been asked about (made before task 14.2, or a request that was lost)."""
+        tasks = []
+        for order in _open_orders(ctx, ("pending",)):
+            if has_pending(ctx.conn, ctx.business_id, KIND_PURCHASE_ORDER, product_ref(order["product_id"])):
+                continue
+            tasks.append(
+                Task(
+                    agent_id=me,
+                    kind=TaskKind.READ,
+                    payload={"action": ACT_REQUEST_APPROVAL, "purchase_order_id": order["id"]},
+                    cost_idr=0,
+                    reason=f"Pesanan {order['qty']}x {order['name']} ({rupiah(order['cost_idr'])}) menunggu pemilik",
+                    label=LABEL_REORDER_PENDING,
+                    bubble=_bubble(f"Mengajukan pesanan {order['name']}"),
+                )
+            )
+        return tasks
 
     def _deliveries(self, ctx: BusinessContext, me: int) -> list[Task]:
         now = ctx.clock.now()
@@ -488,6 +566,8 @@ class StockRole(_WarungRole):
         for product in data.low_stock(ctx.conn, ctx.business_id):
             if product["id"] in ordered:
                 continue
+            if rejected_recently(ctx.conn, ctx.business_id, KIND_PURCHASE_ORDER, product_ref(product["id"]), ctx.clock):
+                continue  # the owner said no to this product in the last 24 hours: do not ask again yet
             qty = max(1, REORDER_TARGET_FACTOR * product["min_qty"] - product["qty"])
             cost = qty * product["unit_cost_idr"]
             payload = {
@@ -536,6 +616,7 @@ class StockRole(_WarungRole):
         return {
             ACT_REORDER: _execute_reorder,
             ACT_REORDER_PENDING: _execute_reorder,
+            ACT_REQUEST_APPROVAL: _request_for_pending_order,
             ACT_RECEIVE: self._receive,
         }
 

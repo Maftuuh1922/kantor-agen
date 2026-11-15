@@ -15,7 +15,11 @@ or from an ``OfficeRuntime`` (the office may not exist yet: first run). Endpoint
 * ``POST /api/office/pause``      pause or resume the whole office (Req 8.1)
 * ``POST /api/agents/{id}/pause`` pause or resume one agent (Req 8.1)
 * ``PUT  /api/policy``            set the daily limit and blocked actions (Req 1.3, 8.2)
-* ``GET  /api/events``            SSE stream (snapshot, visual_state, activity)
+* ``GET  /api/approvals``         requests that wait for the owner (task 14.2)
+* ``POST /api/approvals/{id}/decision``  the owner approves or rejects one: ``{"approve": bool, "note": str|null}``.
+                                  404 unknown, 409 already decided (or its subject is gone), 422 cannot be applied
+                                  now (for example over the daily limit; the request stays pending), 503 database.
+* ``GET  /api/events``            SSE stream (snapshot, visual_state, activity, approval_changed)
 * ``/``                           the static front end (``static/index.html``)
 
 Rules:
@@ -34,6 +38,9 @@ Rules:
   ``{"error": "onboarding_required"}``, before the body is even validated.
 * The heartbeat of an ``OfficeRuntime`` starts only when the policy is set (Req 1.3).
   An ``OfficeContext`` passed directly keeps the old behavior: it starts with the app.
+* An approval never bypasses the policy engine: the app's handler spends through ``authorize`` (see
+  ``skeleton/policy/approvals.py``). The decision and its effects are one transaction, and every decision is
+  an activity row, "Keputusan pemilik".
 * ``agent.role`` is a stable key (roles find each other by it). The role the owner
   sees and edits is the label in ``agent_label`` (see ``onboarding.py``).
 
@@ -54,7 +61,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 
-from skeleton.core.db import transaction
+from skeleton.core.db import transaction, upgrade_schema
 from skeleton.log.activity import daily_summary, install_append_only_triggers, recent
 from skeleton.office.context import OfficeContext, OfficeRuntime
 from skeleton.office.onboarding import (
@@ -67,6 +74,14 @@ from skeleton.office.onboarding import (
     set_role_label,
 )
 from skeleton.office.sse import sse_response
+from skeleton.policy import approvals as approvals_module
+from skeleton.policy.approvals import (
+    EVENT_APPROVAL_CHANGED,
+    MAX_NOTE_CHARS,
+    ApprovalBlocked,
+    ApprovalNotFound,
+    ApprovalNotPending,
+)
 from skeleton.policy.engine import ALLOWED_KINDS, set_policy, spent_today
 from skeleton.runtime.controls import set_agent_paused, set_business_paused
 
@@ -111,6 +126,12 @@ class PolicyBody(BaseModel):
         if unknown:
             raise ValueError(f"unknown action type; allowed: {sorted(ALLOWED_KINDS)}")
         return value
+
+
+class ApprovalDecisionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approve: StrictBool  # a real true or false: 1, "true" and null are refused
+    note: Annotated[StrictStr, Field(max_length=MAX_NOTE_CHARS)] | None = None
 
 
 class OnboardingBody(BaseModel):
@@ -171,6 +192,7 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
         nonlocal heartbeat_waiting
         install_append_only_triggers(ctx.conn)
         ensure_label_table(ctx.conn)
+        upgrade_schema(ctx.conn)  # the approval table and the 'cancelled' order status, also for an old file
         if not ctx.autostart:
             return
         ctx.tracker.start()
@@ -204,6 +226,7 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
     app.state.runtime = runtime
     if runtime.ctx is not None:
         ensure_label_table(runtime.ctx.conn)  # the lifespan may not run (plain TestClient)
+        upgrade_schema(runtime.ctx.conn)
 
     def current() -> OfficeContext:
         if runtime.ctx is None:
@@ -302,6 +325,35 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
         ).fetchone()
         return int(row[0])
 
+    def approval_view(row: dict[str, Any], agent_names: dict[int, str]) -> dict[str, Any]:
+        """One request for the owner. The raw ``detail`` is not sent: only its ``summary`` and ``reason`` lines."""
+        detail = row["detail"] if isinstance(row["detail"], dict) else {}
+
+        def line(key: str) -> str:
+            value = detail.get(key)
+            return value[:300] if isinstance(value, str) else ""
+
+        return {
+            "id": int(row["id"]),
+            "agent_id": row["agent_id"],
+            "agent_name": agent_names.get(row["agent_id"], "") if row["agent_id"] is not None else "",
+            "kind": row["kind"],
+            "subject": row["subject"],
+            "amount_idr": int(row["amount_idr"]),
+            "summary": line("summary"),
+            "reason": line("reason"),
+            "status": row["status"],
+            "created_at": row["created_at"],
+        }
+
+    def pending_approval_views(ctx: OfficeContext, agent_id: int | None = None) -> list[dict[str, Any]]:
+        names = {
+            int(r["id"]): r["name"]
+            for r in ctx.conn.execute("SELECT id, name FROM agent WHERE business_id = ?", (ctx.business_id,))
+        }
+        rows = approvals_module.list_pending(ctx.conn, ctx.business_id, agent_id)
+        return [approval_view(r, names) for r in rows]
+
     def refresh_tracker(ctx: OfficeContext) -> None:
         try:
             ctx.tracker.refresh()
@@ -325,6 +377,7 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
             "spent_today_idr": spent_today(ctx.conn, ctx.business_id, ctx.clock),
             "demo_mode": bool(ctx.settings.public_dict()["demo_mode"]),
             "pacing_enabled": bool(ctx.settings.pacing_enabled),
+            "pending_approvals": approvals_module.pending_count(ctx.conn, ctx.business_id),
         }
 
     # -------------------------------------------------------------- #
@@ -348,6 +401,7 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
             "bubble_text": live["bubble_text"] if live else "",
             "spent_today_idr": agent_spent_today(ctx, agent_id),
             "recent_actions": [{k: a[k] for k in _AGENT_PUBLIC_FIELDS} for a in actions],
+            "pending_approvals": pending_approval_views(ctx, agent_id),
         }
 
     @app.get("/api/activity")
@@ -363,7 +417,11 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
         ctx = current()
         load_business(ctx)
         summary = daily_summary(ctx.conn, ctx.business_id, ctx.clock.today())
-        return {**summary, "pending_outbox": pending_outbox_count(ctx)}
+        return {
+            **summary,
+            "pending_outbox": pending_outbox_count(ctx),
+            "pending_approvals": approvals_module.pending_count(ctx.conn, ctx.business_id),
+        }
 
     @app.get("/api/outbox")
     async def get_outbox(
@@ -377,6 +435,12 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
             (ctx.business_id, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    @app.get("/api/approvals")
+    async def get_approvals() -> list[dict[str, Any]]:
+        ctx = current()
+        load_business(ctx)
+        return pending_approval_views(ctx)
 
     @app.get("/api/events")
     async def get_events(request: Request):
@@ -460,6 +524,40 @@ def create_app(source: OfficeContext | OfficeRuntime) -> FastAPI:
                 # The label only. agent.role stays the key the roles use to find each other.
                 set_role_label(ctx.conn, agent_id, body.role)
         return agent_summary(load_agent(ctx, agent_id))
+
+    @app.post("/api/approvals/{approval_id}/decision")
+    async def post_approval_decision(approval_id: int, body: ApprovalDecisionBody) -> Any:
+        ctx = current()
+        load_business(ctx)
+        if not 0 <= approval_id <= SQLITE_MAX_INT:  # cannot exist, and would overflow SQLite
+            raise HTTPException(status_code=404, detail="approval not found")
+        try:
+            result = approvals_module.decide(
+                ctx.conn, ctx.business_id, approval_id, body.approve, ctx.approval_handlers, ctx.clock,
+                note=body.note, bus=ctx.bus,
+            )
+        except ApprovalNotFound:
+            raise HTTPException(status_code=404, detail="approval not found") from None
+        except ApprovalNotPending as exc:
+            return JSONResponse(status_code=409, content={"detail": "approval is not pending", "status": exc.status})
+        except ApprovalBlocked as exc:
+            # Nothing was written and the request is still pending: the owner can fix the cause and decide again.
+            return JSONResponse(status_code=422, content={"detail": str(exc), "status": "pending"})
+        # The tracker forgets an old "waiting" report of this agent at once (the bus event reaches it a moment later).
+        ctx.tracker.handle_event(
+            {"type": EVENT_APPROVAL_CHANGED, "approval_id": approval_id, "agent_id": result.approval["agent_id"]}
+        )
+        remaining = approvals_module.pending_count(ctx.conn, ctx.business_id)
+        payload = {
+            "id": approval_id,
+            "status": result.status,
+            "message": result.message,
+            "cost_idr": result.cost_idr,
+            "pending_count": remaining,
+        }
+        if not result.ok:  # the subject is gone or changed: it can never be applied
+            return JSONResponse(status_code=409, content={**payload, "detail": result.message or "approval failed"})
+        return payload
 
     @app.put("/api/policy")
     async def put_policy(body: PolicyBody) -> dict[str, Any]:

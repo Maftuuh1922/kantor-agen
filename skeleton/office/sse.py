@@ -3,7 +3,8 @@
 ``event_stream`` yields SSE text frames (``event: <type>\\ndata: <json>\\n\\n``):
 
 1. one ``snapshot`` event with the tracker's current state of every agent,
-2. then live ``visual_state`` and ``activity`` events from the bus,
+2. then live ``visual_state``, ``activity`` and ``approval_changed`` events from the bus
+   (the last one tells the browser to reload the owner's approval queue),
 3. plus a ``: keepalive`` comment whenever nothing was sent for
    ``keepalive_seconds`` (default 15).
 
@@ -29,12 +30,13 @@ from fastapi.responses import StreamingResponse
 
 from skeleton.core.events import EventBus, SubscriptionClosed
 from skeleton.office.visual import EVENT_VISUAL_STATE, VisualTracker
+from skeleton.policy.approvals import EVENT_APPROVAL_CHANGED
 
 KEEPALIVE_SECONDS = 15.0
 KEEPALIVE_FRAME = ": keepalive\n\n"
 EVENT_SNAPSHOT = "snapshot"
 EVENT_ACTIVITY = "activity"
-FORWARDED_EVENTS = frozenset({EVENT_VISUAL_STATE, EVENT_ACTIVITY})
+FORWARDED_EVENTS = frozenset({EVENT_VISUAL_STATE, EVENT_ACTIVITY, EVENT_APPROVAL_CHANGED})
 MEDIA_TYPE = "text/event-stream"
 
 

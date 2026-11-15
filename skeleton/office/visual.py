@@ -30,6 +30,12 @@ event whenever an agent's state changes. It reacts to:
 * ``pause_changed``: the pause flags were changed (see ``controls.py``). The
   code that changes a flag must publish this event or call ``refresh()``,
   because ``controls.py`` itself does not publish.
+* ``approval_changed`` (task 14.2): a request for the owner was filed or decided.
+  An agent that has a pending request (table ``approval``) stays ``waiting`` (amber)
+  whatever its last ``agent_state`` said, and goes back to normal when the owner has
+  decided its last request: the tracker then forgets that agent's ``waiting`` report.
+  Pause still wins, and a running task still shows ``working`` (Property 7 is about
+  ``working``, which this does not touch).
 
 Pause flags are always read from the database, so they cannot go stale.
 Time comes from the injected clock.
@@ -48,6 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from skeleton.core.clock import Clock
 from skeleton.core.events import EventBus, Subscription, SubscriptionClosed
+from skeleton.policy.approvals import EVENT_APPROVAL_CHANGED, waiting_agents
 from skeleton.runtime.models import task_bubble
 
 if TYPE_CHECKING:  # avoid importing the runtime just for a type
@@ -62,6 +69,7 @@ TRACKER_BUFFER = 1000
 EVENT_AGENT_STATE = "agent_state"
 EVENT_HANDOFF = "handoff"
 EVENT_PAUSE_CHANGED = "pause_changed"
+EVENT_APPROVAL = EVENT_APPROVAL_CHANGED
 EVENT_VISUAL_STATE = "visual_state"
 
 _REPORTABLE_STATES = frozenset({"working", "idle", "waiting"})
@@ -141,6 +149,7 @@ def snapshot(
     business_paused, agents = _load_office(conn, business_id)
     names = {agent_id: name for agent_id, name, _ in agents}
     running_map = heartbeat.running if heartbeat is not None else {}
+    owner_waits = waiting_agents(conn, business_id)  # agents with a request the owner has not decided
 
     result: list[dict] = []
     for agent_id, _name, agent_paused in agents:
@@ -154,7 +163,7 @@ def snapshot(
             business_paused,
             running,
             ctx.handoff_target,
-            ctx.reported_state == "waiting",
+            ctx.reported_state == "waiting" or agent_id in owner_waits,
         )
 
         target: int | None = None
@@ -168,7 +177,8 @@ def snapshot(
             else:
                 bubble = task_bubble(running)
         elif state is VisualState.WAITING:
-            bubble = ctx.bubble_text
+            bubble = ctx.bubble_text if ctx.reported_state == "waiting" else ""
+            bubble = bubble or owner_waits.get(agent_id, "")
 
         result.append(
             {
@@ -259,6 +269,8 @@ class VisualTracker:
         elif etype == EVENT_HANDOFF:
             if not self._on_handoff(event):
                 return
+        elif etype == EVENT_APPROVAL:
+            self._on_approval_changed(event)
         elif etype != EVENT_PAUSE_CHANGED:
             return  # includes our own visual_state events
         self.refresh()
@@ -271,6 +283,15 @@ class VisualTracker:
         self._reported[agent_id] = (state, bubble if isinstance(bubble, str) else "")
         self._handoffs.pop(agent_id, None)  # the next agent_state ends a handoff
         return True
+
+    def _on_approval_changed(self, event: dict[str, Any]) -> None:
+        """A request was filed or decided. When an agent has none left, its old ``waiting`` report ends."""
+        agent_id = event.get("agent_id")
+        if not _is_agent_id(agent_id):
+            return
+        reported = self._reported.get(agent_id)
+        if reported is not None and reported[0] == "waiting" and agent_id not in waiting_agents(self._conn, self._business_id):
+            del self._reported[agent_id]
 
     def _on_handoff(self, event: dict[str, Any]) -> bool:
         source, target = event.get("from_agent_id"), event.get("to_agent_id")

@@ -8,7 +8,7 @@ import { ACTION_KINDS, formatRupiah, parseRupiah, validatePolicyInput } from "./
 import { TEXT, fmt } from "./ui-text.js";
 
 const DEFAULT_LIMIT_IDR = 100000; // the default named in the design document
-const BACKGROUND_IDS = ["office-canvas", "overlay", "hud", "side-panel", "activity-feed"];
+const BACKGROUND_IDS = ["office-canvas", "overlay", "hud", "side-panel", "approvals-panel", "activity-feed"];
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
