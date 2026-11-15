@@ -172,7 +172,7 @@ SQLite tables. Money is stored as integer rupiah to avoid floating-point error.
 | `product` | id, business_id, name, qty, min_qty, unit_price_idr, unit_cost_idr |
 | `sale` | id, business_id, created_at, total_idr |
 | `sale_item` | sale_id, product_id, qty, unit_price_idr, discount_idr |
-| `purchase_order` | id, product_id, qty, cost_idr, status (`placed` or `pending`) |
+| `purchase_order` | id, product_id, qty, cost_idr, status (`placed`, `pending` or `received`), received_at (set when received) |
 | `activity` | id, business_id, agent_id, action, reason, cost_idr, status, created_at |
 | `outbox` | id, business_id, agent_id, channel, recipient, body, status (`pending` only in MVP) |
 

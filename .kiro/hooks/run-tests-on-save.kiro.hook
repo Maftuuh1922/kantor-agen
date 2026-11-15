@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Run tests on Python save",
+  "description": "Runs the pytest suite when a Python file under skeleton/ or apps/ is saved.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "skeleton/**/*.py",
+      "apps/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": ".venv/bin/pytest -q"
+  }
+}

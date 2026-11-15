@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kantor-agen"
+version = "0.1.0"
+description = "Kantor Agen: a 3D office of autonomous AI staff for small businesses."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "hypothesis",
+    "pytest-asyncio",
+]
+
+[tool.setuptools.packages.find]
+include = ["skeleton*"]
+
+# Running the apps: the folders under apps/ have hyphens (apps/kantor-warung),
+# so they are not importable packages. Run each one as a script with the repo
+# root on PYTHONPATH so that `import skeleton` works:
+#
+#   PYTHONPATH=. python apps/kantor-warung/app.py
+#   PYTHONPATH=. python apps/kantor-jasa/app.py
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"

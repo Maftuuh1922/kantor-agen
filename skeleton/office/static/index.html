@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="data:,">
+  <title>Kantor Agen</title>
+  <link rel="stylesheet" href="./style.css">
+  <!-- Offline: "three" and its addons resolve to the vendored copies. No CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="office-canvas" aria-label="Kantor 3D"></canvas>
+
+  <!-- Speech bubbles, status markers and name labels, one tag per agent (ui-overlay.js). -->
+  <div id="overlay" class="overlay" role="group" aria-label="Staf di kantor"></div>
+
+  <header id="hud" class="hud-top">
+    <div class="hud-left">
+      <span id="business-name" class="business-name">Kantor Agen</span>
+      <span id="spend-info" class="spend-info" title="Pengeluaran hari ini / batas belanja harian">
+        <span class="spend-label">Hari ini</span>
+        <span id="spend-value" class="spend-value">-</span>
+      </span>
+      <span id="demo-badge" class="badge badge-demo" hidden title="Data contoh, bukan usaha sungguhan">Mode demo</span>
+    </div>
+    <div class="hud-right">
+      <span id="paused-badge" class="badge badge-paused" role="status" hidden>Dijeda</span>
+      <!-- The owner's approval queue (ui-approvals.js): muted at 0, amber when something waits. -->
+      <button id="approvals-btn" type="button" class="hud-btn approvals-badge" data-state="none" aria-expanded="false" aria-controls="approvals-panel" title="Buka antrian persetujuan"><span class="approvals-dot" aria-hidden="true"></span><span id="approvals-btn-text">Menunggu keputusan (0)</span></button>
+      <button id="rules-btn" type="button" class="hud-btn" title="Ubah batas belanja harian dan aksi yang diblokir">Aturan</button>
+      <button id="pause-btn" type="button" class="hud-btn hud-btn-pause" disabled aria-label="Jeda semua staf">Jeda</button>
+      <button id="quality-btn" type="button" class="hud-btn" aria-pressed="false" title="Ganti antara kualitas normal dan rendah">Kualitas: Normal</button>
+    </div>
+    <p id="hud-message" class="hud-message" role="alert" hidden></p>
+  </header>
+
+  <!-- Shown only after several seconds of slow frames in normal quality. It never switches by itself. -->
+  <div id="quality-hint" class="quality-hint" role="status" hidden>
+    <span class="quality-hint-text">Pindah ke kualitas rendah?</span>
+    <button id="quality-hint-yes" type="button" class="hud-btn">Pindah</button>
+    <button id="quality-hint-no" type="button" class="hud-btn" aria-label="Tutup saran">Nanti saja</button>
+  </div>
+  <aside id="side-panel" class="side-panel" hidden aria-label="Panel staf"></aside>
+  <!-- Requests that wait for the owner: Setujui / Tolak (ui-approvals.js fills it). -->
+  <aside id="approvals-panel" class="side-panel approvals-panel" hidden aria-label="Antrian persetujuan"></aside>
+  <!-- Announces new requests to screen readers. -->
+  <p id="approvals-live" class="sr-only" role="status" aria-live="polite"></p>
+
+  <aside id="activity-feed" class="activity-feed" aria-label="Aktivitas terbaru">
+    <button id="feed-toggle" type="button" class="feed-toggle" aria-expanded="true" aria-controls="feed-list">
+      <span class="feed-title">Aktivitas</span>
+      <span class="feed-count" aria-label="jumlah aktivitas">0</span>
+      <span class="feed-chevron" aria-hidden="true"></span>
+    </button>
+    <ul id="feed-list" class="feed-list" aria-label="5 aktivitas terakhir, terbaru di atas"></ul>
+    <p id="feed-empty" class="feed-empty">Belum ada aktivitas.</p>
+  </aside>
+
+  <!-- First run, step 1: business name and type (Requirements 1.1, 1.2). Filled in by ui-onboarding.js. -->
+  <main id="onboarding" class="onboarding" lang="id" aria-labelledby="onboarding-title" hidden>
+    <div class="onboarding-card">
+      <p class="onboarding-brand">Kantor Agen</p>
+      <h1 id="onboarding-title" class="onboarding-title">Selamat datang di Kantor Agen</h1>
+      <p class="onboarding-intro">
+        Kantor 3D berisi staf AI yang bekerja sendiri untuk usahamu. Isi dua hal ini dulu. Cukup sekali.
+      </p>
+      <form id="onboarding-form" novalidate>
+        <div class="field">
+          <label for="onboarding-name" class="field-label">Nama usaha</label>
+          <input id="onboarding-name" name="name" type="text" maxlength="60" autocomplete="organization"
+                 spellcheck="false" placeholder="Contoh: Warung Bu Tini"
+                 aria-describedby="onboarding-name-help onboarding-name-error">
+          <p id="onboarding-name-help" class="field-help">Nama ini tampil di bagian atas kantor. Maksimal 60 huruf.</p>
+          <p id="onboarding-name-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <fieldset class="field" aria-describedby="onboarding-type-error">
+          <legend class="field-label">Jenis usaha</legend>
+          <div id="onboarding-types" class="type-grid"></div>
+          <p id="onboarding-type-error" class="field-error" role="alert" hidden></p>
+        </fieldset>
+        <section class="onboarding-preview" aria-labelledby="onboarding-preview-title" aria-live="polite">
+          <h2 id="onboarding-preview-title" class="onboarding-preview-title">Staf AI yang akan bekerja untukmu</h2>
+          <p id="onboarding-preview-hint" class="field-help">Pilih jenis usaha untuk melihat siapa yang akan bekerja.</p>
+          <ul id="onboarding-preview-list" class="staff-list" hidden></ul>
+        </section>
+        <p id="onboarding-error" class="field-error" role="alert" hidden></p>
+        <div class="onboarding-actions">
+          <p class="onboarding-note">
+            Langkah berikutnya: kamu mengatur batas pengeluaran harian. Staf AI tidak bisa membelanjakan uang sebelum itu.
+          </p>
+          <button id="onboarding-submit" type="submit" class="btn-primary">Buka kantor</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- First run, step 2: the owner sets the policy before any agent can spend (Requirement 1.3). -->
+  <div id="policy-modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="policy-title" aria-describedby="policy-intro">
+      <h2 id="policy-title" class="modal-title">Atur aturan belanja</h2>
+      <p id="policy-intro" class="modal-intro">
+        Staf tidak bisa membelanjakan uang sebelum kamu mengatur batas ini. Kamu bisa mengubahnya nanti.
+      </p>
+      <form id="policy-form" novalidate>
+        <div class="field">
+          <label for="policy-limit" class="field-label">Batas belanja harian (Rupiah)</label>
+          <input id="policy-limit" name="daily_limit_idr" type="text" inputmode="numeric" autocomplete="off"
+                 spellcheck="false" aria-describedby="policy-limit-preview policy-limit-error" placeholder="100000">
+          <p id="policy-limit-preview" class="field-preview" aria-live="polite"></p>
+          <p id="policy-limit-error" class="field-error" role="alert" hidden></p>
+        </div>
+        <fieldset class="field" aria-describedby="policy-blocked-error">
+          <legend class="field-label">Aksi yang diblokir</legend>
+          <p class="field-help">Staf tidak akan pernah melakukan aksi yang kamu centang.</p>
+          <div id="policy-blocked" class="check-list"></div>
+          <p id="policy-blocked-error" class="field-error" role="alert" hidden></p>
+        </fieldset>
+        <p id="policy-error" class="field-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button id="policy-cancel" type="button" class="hud-btn" hidden>Batal</button>
+          <button id="policy-submit" type="submit" class="btn-primary">Simpan dan mulai</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="loading" class="loading" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Memuat kantor">
+    <div class="loading-box">
+      <div class="loading-title">Kantor Agen</div>
+      <div class="loading-track"><div class="loading-fill" data-fill></div></div>
+      <div class="loading-label" data-label>Memuat kantor</div>
+    </div>
+  </div>
+
+  <div id="fatal" class="fatal" hidden role="alert"></div>
+  <noscript><div class="fatal">Halaman ini memerlukan JavaScript dan WebGL.</div></noscript>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
