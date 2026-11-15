@@ -317,26 +317,26 @@ This plan builds Kantor Agen in four blocks: the Python skeleton (policy, runtim
   - Run the full test suite and run both applications end to end; ask the owner if anything needs to change
 
 - [ ] 13. Documentation and submission material
-  - [ ] 13.1 Write the README
+  - [x] 13.1 Write the README
     - Explain the idea, the skeleton-plus-two-apps layout, one-command run per application, and the demo mode with the fake LLM
     - _Requirements: 9.3, 10.3_
-  - [ ] 13.2 Write the Kiro usage write-up
+  - [x] 13.2 Write the Kiro usage write-up
     - Describe how specs, steering, hooks, and property-based tests shaped the build, with real examples from this repository
     - _Requirements: 11.2_
-  - [ ] 13.3 Check repository readiness for Devpost
+  - [x] 13.3 Check repository readiness for Devpost
     - Public repo, visible MIT license, `.kiro/` committed, two app folders, `CREDITS.md`, and no secrets in the history
     - _Requirements: 9.1, 10.2, 11.2_
   - [ ] 13.4 Record the demo video
     - Show the working app on the device it was built for, under three minutes, uploaded as public to YouTube
     - _Requirements: 10.1_
 
-- [ ] 14. Demo polish and owner approvals
-  - [ ] 14.1 Make the demo lively at any hour
+- [x] 14. Demo polish and owner approvals
+  - [x] 14.1 Make the demo lively at any hour
     - Simulators ignore business hours in demo mode
     - Friendly action labels and short bubbles from roles
     - Indonesian UI text, rename UI, and clearer rejection reasons
     - _Requirements: 2.5, 3.2, 10.1_
-  - [ ] 14.2 Let the owner approve or reject waiting items
+  - [x] 14.2 Let the owner approve or reject waiting items
     - Pending purchase orders and large draft invoices get approve and reject actions
     - Approval goes through the policy engine and is logged
     - _Requirements: 5.1, 5.2, 7.1, 8.2_

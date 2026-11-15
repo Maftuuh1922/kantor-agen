@@ -1,6 +1,6 @@
 # Devpost submission text (Kiroween 2026, Skeleton Crew)
 
-Ready to paste. Numbers were checked on commit `4b96e5d` of branch `kantor-agen/build`. Anything marked `TODO(owner)` needs you. Evidence for every Kiro claim is in [KIRO_USAGE.md](KIRO_USAGE.md).
+Ready to paste. Numbers were checked on commit `a600edf` of branch `kantor-agen/build` (task 13.3 audit). Anything marked `TODO(owner)` needs you. Evidence for every Kiro claim is in [KIRO_USAGE.md](KIRO_USAGE.md).
 
 ## Project name
 
@@ -20,7 +20,7 @@ Kantor Agen is a 3D office for small business owners in Indonesia (UMKM). You pi
 
 The staff act on their own. A heartbeat checks each agent's rules on a schedule, and a language model is called only when a task needs written text. A Manager Agent routes handoffs and picks the model per task. The owner sets a daily spending limit and a list of blocked actions once. A policy engine in backend code checks every spend and message before it runs, so a model output alone cannot get past the limit. Customer messages go to an outbox and are never sent. Every action is written to an append-only activity log, and the owner can pause the whole office or a single agent.
 
-The staff are rigged 3D characters that walk around furniture, sit and type, walk to a colleague to hand off work, and raise a hand when they wait for the owner. The backend decides what each character does, so someone appears to work only while a task is really running.
+The staff are rigged 3D characters that walk around furniture, sit and type, walk to a colleague to hand off work, and raise a hand when they wait for the owner. Over-limit orders and large invoices wait in an approval queue (Setujui or Tolak). An approval still passes the policy engine, and a rejected order is not asked again for 24 hours. The backend decides what each character does, so someone appears to work only while a task is really running.
 
 Skeleton Crew angle: one skeleton (policy engine, runtime, Manager, activity log, 3D office, onboarding, API) powers two apps in two folders, `apps/kantor-warung` and `apps/kantor-jasa`. Each app adds roles, data, seed data and a template.
 
@@ -34,9 +34,9 @@ I built Kantor Agen with the Kiro IDE spec workflow, and I checked every claim b
 
 **Steering.** Three files in `.kiro/steering/` set the rules: money is integer rupiah, policy checks live in backend code only, customer messages stay in the outbox, the skeleton never imports from the apps. The code follows them, and tests enforce several (a `CHECK` constraint on the outbox, a test that the skeleton names no business type).
 
-**Hook.** One hook runs the test suite when a Python file under `skeleton/` or `apps/` is saved. The full suite takes about 3 minutes, which is too slow for that job. I would narrow it.
+**Hook.** One hook runs the test suite when a Python file under `skeleton/` or `apps/` is saved. The full suite takes about 7 minutes, which is too slow for that job. I would narrow it.
 
-**Property-based tests.** Seven Hypothesis properties, 200 examples each, cover stock, sale totals, the daily limit, blocked actions, outbox-only messages, pause, and truthful visual state. I did not find a bug that only a property test caught. In seven hand-made mutations (for example, removing the limit check) the property tests and the unit tests both failed.
+**Property-based tests.** Seven Hypothesis properties from the design, 200 examples each, cover stock, sale totals, the daily limit, blocked actions, outbox-only messages, pause, and truthful visual state. A later file covers the approval queue. I did not find a bug that only a property test caught. In seven hand-made mutations (for example, removing the limit check), made on an earlier commit (`4b96e5d`), the property tests and the unit tests both failed.
 
 **Not used.** No MCP server, no custom agent and no Kiro power. I did not use Kiro CLI, Web or Crew for this project. `TODO(owner)`: confirm this sentence is true before submitting.
 
@@ -61,13 +61,13 @@ Writing the rule "the scene shows work only while the backend reports a running 
 | Field | Status |
 |---|---|
 | Category: Skeleton Crew, two app folders in one repo | `apps/kantor-warung`, `apps/kantor-jasa` (verified) |
-| Public repository URL | `https://github.com/Maftuuh1922/kantor-agen` is the `origin` remote. `TODO(owner)`: confirm it is public |
-| Default branch has the work | `TODO(owner)`: `main` holds only the three spec files and `LICENSE`; the build is on `kantor-agen/build` and must be merged before judging |
-| Open source license visible | MIT, `LICENSE` at the root (verified) |
-| `.kiro/` at the root, tracked, not in `.gitignore` | Verified on `kantor-agen/build` (8 tracked files: 3 steering, 1 hook, 4 spec files) |
+| Public repository URL | `https://github.com/Maftuuh1922/kantor-agen`. `gh repo view` reported `PUBLIC` (visibility public, not private) at the task 13.3 audit |
+| Default branch has the work | At the audit `main` held only the three spec files and `LICENSE` (the default branch on GitHub is `main`), and the build was on `kantor-agen/build`. `TODO(owner)`: after the merge, open the repository page and confirm that `README.md`, `.kiro/`, `apps/` and `skeleton/` show on `main` |
+| Open source license visible | MIT, `LICENSE` at the root. GitHub's license detection reports `MIT License` (`gh repo view --json licenseInfo`). `TODO(owner)`: after the merge, confirm "MIT license" shows in the About box |
+| `.kiro/` at the root, tracked, not in `.gitignore` | Verified on `kantor-agen/build` (8 tracked files: 3 steering, 1 hook, 4 spec files). `git check-ignore` matched none of them |
 | Kiro write-up | `docs/KIRO_USAGE.md` |
-| Root `README` with run instructions | `TODO(owner)`: not present at `4b96e5d` (task 13.1 is open). The app READMEs exist |
-| No secrets in the history | `TODO(owner)`: not checked yet (task 13.3) |
+| Root `README` with run instructions | `README.md` exists, with five screenshots in `docs/images/`. The app READMEs exist too |
+| No secrets in the history | Scanned all branches of the git history at `a600edf` (task 13.3): no real key or token. The only matches are test canaries (`sk-FAKE-...`) and the placeholders in `.env.example`. No `.env`, `.db` or key file was ever committed |
 | Demo video, public YouTube URL, under 3 minutes | `TODO(owner)` |
 | Social media post URL | `TODO(owner)` |
 | Blog post URL | `TODO(owner)` |
@@ -82,7 +82,10 @@ Writing the rule "the scene shows work only while the backend reports a running 
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python apps/kantor-warung/app.py --port 8000    # then open http://127.0.0.1:8000/
 .venv/bin/python apps/kantor-jasa/app.py --port 8001      # then open http://127.0.0.1:8001/
-.venv/bin/pytest -q                                       # 1196 tests, about 3 minutes
+.venv/bin/pytest -q                                       # 1335 tests, about 7 minutes (two of them run the Node suite)
+node --test tests/js/                                     # 144 tests
 ```
+
+On the first run the page asks for a business name, then for the daily spending limit; the staff start after you save it. For a lively first look add `--interval 10`. To see the approval queue, set a low daily limit (for example Rp 20.000) in Aturan.
 
 No API key is needed; without `KANTOR_LLM_API_KEY` the app uses an offline stand-in model. Do not claim 30 fps or a 5 second load time anywhere: [performance.md](performance.md) says neither was verified on real hardware.

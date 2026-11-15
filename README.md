@@ -17,7 +17,7 @@ Small business owners cannot watch an AI agent all day, and they cannot afford o
 - **Limits live in backend code.** A policy engine ([`skeleton/policy/engine.py`](skeleton/policy/engine.py)) checks every spend against the daily limit and the blocked actions. The model never approves anything.
 - **Customer messages are never sent.** They go to an outbox, and the table only accepts `pending` rows.
 - **Everything is logged.** The activity log is append-only (SQLite triggers refuse updates and deletes).
-- **The owner decides the rest.** A purchase or invoice above the limit waits in an approval queue (Setujui or Tolak). The owner can pause the whole office or one agent.
+- **The owner decides the rest.** A purchase above the daily limit (Warung) or an invoice above the auto-approve limit (Jasa) waits in an approval queue (Setujui or Tolak). The owner can pause the whole office or one agent.
 - **The scene tells the truth.** A character sits and types only while the backend reports a running task. It walks to a colleague for a handoff, and raises a hand while it waits for the owner.
 
 ![Staff typing at their desks; one agent waits for the owner with a raised hand](docs/images/02-office-typing-waiting.jpg)
@@ -59,7 +59,6 @@ Needs Python 3.11 or newer (`pyproject.toml`). I verified a clean install and ru
 ```
 git clone https://github.com/Maftuuh1922/kantor-agen.git
 cd kantor-agen
-git checkout kantor-agen/build    # the work is on this branch until it is merged to main
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 

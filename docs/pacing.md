@@ -53,15 +53,17 @@ for the length of the think time.
 | Where | Pacing |
 |---|---|
 | Tests and the skeleton (`Settings()`) | off, tasks are instant |
-| `apps/kantor_warung/app.py` started from the command line | on |
+| `apps/kantor-warung/app.py` and `apps/kantor-jasa/app.py` started from the command line | on |
 | `skeleton/office/demo.py` | not used (its dummy roles already sleep) |
 
 ### Turn it off or tune it
 
 ```
-.venv/bin/python apps/kantor_warung/app.py --no-pacing
-.venv/bin/python apps/kantor_warung/app.py --pace-min 2 --pace-max 4
+.venv/bin/python apps/kantor-warung/app.py --no-pacing
+.venv/bin/python apps/kantor-warung/app.py --pace-min 2 --pace-max 4
 ```
+
+`apps/kantor-jasa/app.py` takes the same options.
 
 Or with environment variables (also in `.env`): `KANTOR_PACING=0` (or `1`),
 `KANTOR_PACING_MIN=2`, `KANTOR_PACING_MAX=4`. The rule is `0 <= min <= max <= 60` seconds; a bad
@@ -88,4 +90,4 @@ berjalan, jadi karakter duduk dan mengetik (atau berjalan ke rekan untuk serah t
 **bukan komputasi**: tidak ada panggilan model tambahan, jadi **tidak ada tambahan biaya**.
 Kegagalan tidak disembunyikan, hanya muncul beberapa detik kemudian. Jeda berhenti lebih awal
 bila pemilik menekan jeda (pause). Pacing mati secara bawaan dan di tes, hidup di aplikasi
-Warung. Matikan dengan `--no-pacing` atau `KANTOR_PACING=0`.
+Warung dan Jasa. Matikan dengan `--no-pacing` atau `KANTOR_PACING=0`.
